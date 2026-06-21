@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Base64 Encoder / Decoder</title>
+  <style>
+    /* ============================================================
+       All styles live here — no external stylesheets, no fonts,
+       no CDNs. The whole app is this single file and works from
+       file:// with zero network access.
+       Palette matches the rest of the repo's dark theme.
+       ============================================================ */
+    :root {
+      color-scheme: dark;
+      --bg: #0f172a;       /* page background */
+      --panel: #1e293b;    /* main panels */
+      --panel-2: #273449;  /* secondary surfaces (inputs, chips) */
+      --accent: #38bdf8;   /* primary accent */
+      --text: #e2e8f0;     /* main text */
+      --muted: #94a3b8;    /* secondary text */
+      --good: #34d399;     /* success */
+      --bad: #f87171;      /* error */
+      --border: #334155;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      padding: 1.5rem;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    main {
+      width: 100%;
+      max-width: 880px;
+      margin: 0 auto;
+    }
+    header { margin-bottom: 1.25rem; }
+    h1 { margin: 0 0 0.25rem; font-size: 1.5rem; }
+    .sub { margin: 0; color: var(--muted); font-size: 0.9rem; }
+
+    /* ---- generic surfaces ---- */
+    .panel {
+      background: var(--panel);
+      border-radius: 16px;
+      padding: 1.25rem;
+      margin-bottom: 1.25rem;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+    }
+    h2 { margin: 0 0 0.85rem; font-size: 1.05rem; }
+
+    /* ---- controls bar (mode + toggles) ---- */
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem 1.25rem;
+      align-items: center;
+    }
+    .seg {
+      display: inline-flex;
+      background: var(--panel-2);
+      border-radius: 12px;
+      padding: 4px;
+      gap: 4px;
+    }
+    .seg button {
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      padding: 0.5rem 1rem;
+      border-radius: 9px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+    .seg button.active {
+      background: var(--accent);
+      color: #04293a;
+    }
+    .toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-size: 0.9rem;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .toggle input { width: 1.05rem; height: 1.05rem; accent-color: var(--accent); cursor: pointer; }
+
+    /* ---- text areas ---- */
+    .io-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1rem;
+    }
+    .field label {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 0.4rem;
+    }
+    .size {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    textarea {
+      width: 100%;
+      min-height: 150px;
+      resize: vertical;
+      padding: 0.75rem 0.9rem;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--text);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.9rem;
+      word-break: break-all;
+    }
+    textarea:focus { outline: 2px solid var(--accent); outline-offset: 0; }
+    textarea[readonly] { background: #1b2738; }
+
+    /* ---- buttons ---- */
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      margin-top: 1rem;
+    }
+    button.action {
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--text);
+      border-radius: 12px;
+      padding: 0.6rem 1rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: transform 0.05s ease, opacity 0.15s ease, background 0.15s ease;
+    }
+    button.action:hover { background: #2f4259; }
+    button.action:active { transform: scale(0.97); }
+    button.action.primary { background: var(--accent); color: #04293a; border-color: transparent; }
+    button.action.primary:hover { opacity: 0.9; }
+
+    .msg { font-size: 0.85rem; min-height: 1.2em; margin-top: 0.6rem; }
+    .msg.error { color: var(--bad); }
+    .msg.ok { color: var(--good); }
+
+    /* ---- file mode ---- */
+    .dropzone {
+      border: 2px dashed var(--border);
+      border-radius: 14px;
+      padding: 1.5rem;
+      text-align: center;
+      color: var(--muted);
+      cursor: pointer;
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+    .dropzone.drag { border-color: var(--accent); background: rgba(56, 189, 248, 0.07); }
+    .dropzone strong { color: var(--text); }
+    .file-info {
+      font-family: ui-monospace, monospace;
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-top: 0.75rem;
+      word-break: break-all;
+    }
+    .preview {
+      margin-top: 0.85rem;
+      max-width: 100%;
+      max-height: 220px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      display: none;
+    }
+
+    .hint { font-size: 0.8rem; color: var(--muted); margin-top: 0.6rem; }
+    .hidden { display: none !important; }
+
+    /* ---- toast ---- */
+    .toast {
+      position: fixed;
+      bottom: 1.5rem;
+      left: 50%;
+      transform: translateX(-50%) translateY(180%);
+      background: var(--good);
+      color: #04241a;
+      padding: 0.6rem 1.1rem;
+      border-radius: 999px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: transform 0.25s ease;
+      z-index: 10;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* Slightly roomier layout on wider screens for the file panel. */
+    @media (min-width: 640px) {
+      h1 { font-size: 1.7rem; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>🔡 Base64 Encoder / Decoder</h1>
+      <p class="sub">Encode &amp; decode text and files entirely in your browser. Nothing is uploaded anywhere.</p>
+    </header>
+
+    <!-- ===================== TEXT PANEL ===================== -->
+    <section class="panel">
+      <div class="controls">
+        <!-- Mode toggle: Encode (text -> base64) or Decode (base64 -> text) -->
+        <div class="seg" id="modeSeg" role="tablist" aria-label="Mode">
+          <button id="modeEncode" class="active" type="button">Encode</button>
+          <button id="modeDecode" type="button">Decode</button>
+        </div>
+
+        <!-- URL-safe Base64: uses - and _ instead of + and /, and strips padding -->
+        <label class="toggle" title="Use -/_ instead of +// and drop = padding">
+          <input type="checkbox" id="urlSafe" /> URL-safe
+        </label>
+      </div>
+
+      <div class="io-grid" style="margin-top:1.1rem;">
+        <div class="field">
+          <label>
+            <span id="inputLabel">Text input</span>
+            <span class="size" id="inputSize">0 bytes</span>
+          </label>
+          <textarea id="input" placeholder="Type or paste here…" spellcheck="false"></textarea>
+        </div>
+
+        <div class="field">
+          <label>
+            <span id="outputLabel">Base64 output</span>
+            <span class="size" id="outputSize">0 bytes</span>
+          </label>
+          <textarea id="output" readonly placeholder="Result appears here…" spellcheck="false"></textarea>
+        </div>
+      </div>
+
+      <div class="msg" id="textMsg"></div>
+
+      <div class="btn-row">
+        <button class="action primary" id="copyBtn" type="button">Copy output</button>
+        <button class="action" id="swapBtn" type="button" title="Move output into input and flip mode">Swap ⇄</button>
+        <button class="action" id="clearBtn" type="button">Clear</button>
+      </div>
+    </section>
+
+    <!-- ===================== FILE PANEL ===================== -->
+    <section class="panel">
+      <h2>📁 File mode</h2>
+
+      <!-- ENCODE: pick/drag a file -> base64 -->
+      <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose or drop a file to encode">
+        <div><strong>Click to choose a file</strong> or drag &amp; drop it here</div>
+        <div class="hint">The file is read locally and converted to Base64.</div>
+        <input type="file" id="fileInput" class="hidden" />
+      </div>
+      <div class="file-info" id="fileInfo"></div>
+      <img class="preview" id="preview" alt="image preview" />
+
+      <div class="field" style="margin-top:1rem;">
+        <label>
+          <span>File as Base64</span>
+          <span class="size" id="fileB64Size">0 bytes</span>
+        </label>
+        <textarea id="fileB64" readonly placeholder="Encoded file appears here…" spellcheck="false"></textarea>
+      </div>
+
+      <div class="btn-row">
+        <button class="action primary" id="copyFileBtn" type="button">Copy Base64</button>
+        <button class="action" id="copyDataUriBtn" type="button" title="data:&lt;mime&gt;;base64,…">Copy data URI</button>
+        <button class="action" id="downloadTxtBtn" type="button">Download .txt</button>
+      </div>
+
+      <hr style="border:none;border-top:1px solid var(--border);margin:1.5rem 0;" />
+
+      <!-- DECODE: base64 string -> downloadable file -->
+      <div class="field">
+        <label>
+          <span>Decode Base64 back to a file</span>
+        </label>
+        <textarea id="fileDecodeIn" placeholder="Paste Base64 (or a full data: URI) here…" spellcheck="false"></textarea>
+      </div>
+      <div class="btn-row">
+        <input type="text" id="downloadName" class="action" style="flex:1;min-width:160px;font-family:ui-monospace,monospace;"
+               value="decoded.bin" aria-label="Download file name" />
+        <button class="action primary" id="decodeFileBtn" type="button">Decode &amp; download</button>
+      </div>
+      <div class="msg" id="fileMsg"></div>
+    </section>
+
+    <p class="sub" style="text-align:center;">UTF-8 safe · URL-safe option · runs offline · 100% private</p>
+  </main>
+
+  <div class="toast" id="toast">Copied to clipboard</div>
+
+  <script>
+    /* ============================================================
+       All logic lives here. No external runtime dependencies.
+
+       KEY DETAIL — UTF-8 SAFETY:
+       The built-in btoa()/atob() only understand "binary strings"
+       (one byte per char, code points 0–255). Passing characters
+       like é or 🙂 straight to btoa() throws. So for TEXT we first
+       turn the string into UTF-8 bytes with TextEncoder, then
+       base64 those bytes. On decode we base64-decode to bytes and
+       run them back through TextDecoder. This round-trips emoji
+       and every non-ASCII character correctly.
+       ============================================================ */
+
+    // ---------- low-level byte <-> base64 helpers ----------
+
+    // Encode a Uint8Array of raw bytes into a standard base64 string.
+    function bytesToBase64(bytes) {
+      // Build a binary string (each char = one byte) in chunks so we
+      // don't blow the call-stack on large files via String.fromCharCode.
+      let binary = "";
+      const CHUNK = 0x8000;
+      for (let i = 0; i < bytes.length; i += CHUNK) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+      }
+      return btoa(binary); // btoa is safe here: every char is 0–255.
+    }
+
+    // Decode a standard base64 string back into a Uint8Array of bytes.
+    function base64ToBytes(b64) {
+      const binary = atob(b64); // throws on malformed input -> caught by callers.
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      return bytes;
+    }
+
+    // ---------- URL-safe transforms ----------
+
+    // Standard base64 -> URL-safe (and optionally strip = padding).
+    function toUrlSafe(b64, stripPadding) {
+      let out = b64.replace(/\+/g, "-").replace(/\//g, "_");
+      if (stripPadding) out = out.replace(/=+$/, "");
+      return out;
+    }
+
+    // URL-safe (possibly unpadded) -> standard base64 that atob() accepts.
+    function fromUrlSafe(b64) {
+      let out = b64.replace(/-/g, "+").replace(/_/g, "/");
+      // Re-add padding so the length is a multiple of 4.
+      while (out.length % 4 !== 0) out += "=";
+      return out;
+    }
+
+    // ---------- text encoders ----------
+    const utf8Encoder = new TextEncoder();                 // string -> UTF-8 bytes
+    const utf8Decoder = new TextDecoder("utf-8", { fatal: true }); // bytes -> string (throws on bad UTF-8)
+
+    // Encode a normal JS string to base64 (UTF-8 safe).
+    function encodeText(str, urlSafe) {
+      const b64 = bytesToBase64(utf8Encoder.encode(str));
+      return urlSafe ? toUrlSafe(b64, true) : b64;
+    }
+
+    // Decode a base64 string to a normal JS string (UTF-8 safe).
+    // `urlSafe` tells us to first normalise -/_ back to +//.
+    function decodeText(b64, urlSafe) {
+      const normalized = urlSafe ? fromUrlSafe(b64.trim()) : b64.trim();
+      return utf8Decoder.decode(base64ToBytes(normalized));
+    }
+
+    // ---------- size helpers ----------
+    function byteLen(str) { return utf8Encoder.encode(str).length; }
+    function fmtBytes(n) {
+      if (n < 1024) return n + " bytes";
+      if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
+      return (n / (1024 * 1024)).toFixed(2) + " MB";
+    }
+
+    // ============================================================
+    //  TEXT PANEL wiring
+    // ============================================================
+    const el = (id) => document.getElementById(id);
+    const input = el("input"), output = el("output");
+    const inputLabel = el("inputLabel"), outputLabel = el("outputLabel");
+    const inputSize = el("inputSize"), outputSize = el("outputSize");
+    const textMsg = el("textMsg");
+    const urlSafe = el("urlSafe");
+
+    let mode = "encode"; // "encode" | "decode"
+
+    function setMode(next) {
+      mode = next;
+      el("modeEncode").classList.toggle("active", mode === "encode");
+      el("modeDecode").classList.toggle("active", mode === "decode");
+      inputLabel.textContent  = mode === "encode" ? "Text input" : "Base64 input";
+      outputLabel.textContent = mode === "encode" ? "Base64 output" : "Text output";
+      input.placeholder = mode === "encode"
+        ? "Type or paste text here…"
+        : "Paste Base64 here…";
+      convert();
+    }
+
+    // Live conversion as the user types or flips a toggle.
+    function convert() {
+      const value = input.value;
+      inputSize.textContent = fmtBytes(byteLen(value));
+      textMsg.textContent = "";
+      textMsg.className = "msg";
+
+      if (value === "") {
+        output.value = "";
+        outputSize.textContent = "0 bytes";
+        return;
+      }
+
+      try {
+        if (mode === "encode") {
+          output.value = encodeText(value, urlSafe.checked);
+        } else {
+          output.value = decodeText(value, urlSafe.checked);
+        }
+        outputSize.textContent = fmtBytes(byteLen(output.value));
+      } catch (err) {
+        // Graceful handling of invalid base64 / bad UTF-8 on decode.
+        output.value = "";
+        outputSize.textContent = "0 bytes";
+        textMsg.textContent = mode === "decode"
+          ? "⚠️ Not valid Base64 — check for stray characters, or toggle URL-safe."
+          : "⚠️ Could not encode that input.";
+        textMsg.className = "msg error";
+      }
+    }
+
+    input.addEventListener("input", convert);
+    urlSafe.addEventListener("change", convert);
+    el("modeEncode").addEventListener("click", () => setMode("encode"));
+    el("modeDecode").addEventListener("click", () => setMode("decode"));
+
+    // Clear both fields.
+    el("clearBtn").addEventListener("click", () => {
+      input.value = "";
+      convert();
+      input.focus();
+    });
+
+    // Swap: feed the current output back in and flip the mode, so you can
+    // round-trip (encode then immediately decode the result, etc.).
+    el("swapBtn").addEventListener("click", () => {
+      if (!output.value) return;
+      input.value = output.value;
+      setMode(mode === "encode" ? "decode" : "encode");
+    });
+
+    el("copyBtn").addEventListener("click", () => copyText(output, "Output copied"));
+
+    // ============================================================
+    //  Clipboard helper with a file:// selection fallback.
+    //  navigator.clipboard is often blocked on file:// origins, so
+    //  we fall back to selecting the textarea + execCommand('copy'),
+    //  and finally to just selecting the text for manual copy.
+    // ============================================================
+    async function copyText(sourceEl, okLabel) {
+      const text = typeof sourceEl === "string" ? sourceEl : sourceEl.value;
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast(okLabel);
+        return;
+      } catch (_) { /* fall through to legacy path */ }
+
+      // Legacy / file:// fallback.
+      if (typeof sourceEl !== "string") {
+        sourceEl.removeAttribute("readonly");
+        sourceEl.focus();
+        sourceEl.select();
+        let copied = false;
+        try { copied = document.execCommand("copy"); } catch (_) {}
+        sourceEl.setAttribute("readonly", "");
+        showToast(copied ? okLabel : "Selected — press Ctrl/⌘+C to copy");
+      } else {
+        showToast("Copy not available — select manually");
+      }
+    }
+
+    // ============================================================
+    //  FILE PANEL wiring
+    // ============================================================
+    const dropzone = el("dropzone"), fileInput = el("fileInput");
+    const fileInfo = el("fileInfo"), preview = el("preview");
+    const fileB64 = el("fileB64"), fileB64Size = el("fileB64Size");
+    const fileMsg = el("fileMsg");
+
+    let currentFile = { name: "", mime: "", b64: "" };
+
+    // Open the native picker when the dropzone is clicked / activated.
+    dropzone.addEventListener("click", () => fileInput.click());
+    dropzone.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); }
+    });
+    fileInput.addEventListener("change", () => {
+      if (fileInput.files[0]) handleFile(fileInput.files[0]);
+    });
+
+    // Drag & drop.
+    ["dragenter", "dragover"].forEach((evt) =>
+      dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.add("drag"); })
+    );
+    ["dragleave", "drop"].forEach((evt) =>
+      dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.remove("drag"); })
+    );
+    dropzone.addEventListener("drop", (e) => {
+      const f = e.dataTransfer.files[0];
+      if (f) handleFile(f);
+    });
+
+    // Read a picked file as bytes, base64-encode, show info + image preview.
+    function handleFile(file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const bytes = new Uint8Array(reader.result);
+        const b64 = bytesToBase64(bytes); // files use standard base64.
+        currentFile = { name: file.name, mime: file.type || "application/octet-stream", b64 };
+
+        fileB64.value = b64;
+        fileB64Size.textContent = fmtBytes(b64.length);
+        fileInfo.textContent =
+          `${file.name} · ${currentFile.mime} · ${fmtBytes(file.size)}`;
+
+        // Show an inline preview for images via a data URI.
+        if (currentFile.mime.startsWith("image/")) {
+          preview.src = `data:${currentFile.mime};base64,${b64}`;
+          preview.style.display = "block";
+        } else {
+          preview.style.display = "none";
+          preview.removeAttribute("src");
+        }
+      };
+      reader.onerror = () => {
+        fileMsg.textContent = "⚠️ Could not read that file.";
+        fileMsg.className = "msg error";
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    el("copyFileBtn").addEventListener("click", () => copyText(fileB64, "Base64 copied"));
+
+    // Copy a ready-to-use data URI with the correct MIME type.
+    el("copyDataUriBtn").addEventListener("click", () => {
+      if (!currentFile.b64) return;
+      copyText(`data:${currentFile.mime};base64,${currentFile.b64}`, "data URI copied");
+    });
+
+    // Download the base64 text as a .txt file (built fully in-browser via a Blob).
+    el("downloadTxtBtn").addEventListener("click", () => {
+      if (!currentFile.b64) return;
+      const blob = new Blob([currentFile.b64], { type: "text/plain" });
+      triggerDownload(blob, (currentFile.name || "file") + ".base64.txt");
+    });
+
+    // Decode a pasted base64 string (or full data: URI) back into a real file.
+    el("decodeFileBtn").addEventListener("click", () => {
+      fileMsg.textContent = "";
+      fileMsg.className = "msg";
+
+      let raw = el("fileDecodeIn").value.trim();
+      if (!raw) {
+        fileMsg.textContent = "Paste some Base64 first.";
+        fileMsg.className = "msg error";
+        return;
+      }
+
+      // Accept a whole data: URI — pull out the mime and the payload.
+      let mime = "application/octet-stream";
+      const dataUri = raw.match(/^data:([^;,]+)?(;base64)?,(.*)$/s);
+      if (dataUri) {
+        if (dataUri[1]) mime = dataUri[1];
+        raw = dataUri[3];
+      }
+
+      // Strip whitespace/newlines, then normalise URL-safe chars if present.
+      raw = raw.replace(/\s+/g, "");
+      if (/[-_]/.test(raw)) raw = fromUrlSafe(raw);
+
+      try {
+        const bytes = base64ToBytes(raw);
+        const blob = new Blob([bytes], { type: mime });
+        const name = el("downloadName").value.trim() || "decoded.bin";
+        triggerDownload(blob, name);
+        fileMsg.textContent = `✅ Decoded ${fmtBytes(bytes.length)} — download started.`;
+        fileMsg.className = "msg ok";
+      } catch (err) {
+        fileMsg.textContent = "⚠️ Not valid Base64 — could not decode to a file.";
+        fileMsg.className = "msg error";
+      }
+    });
+
+    // Create an object URL for a Blob and click a temporary <a> to download it.
+    function triggerDownload(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // Revoke shortly after so the download has time to start.
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+    }
+
+    // ---------- toast ----------
+    const toast = el("toast");
+    let toastTimer = null;
+    function showToast(text) {
+      toast.textContent = text;
+      toast.classList.add("show");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove("show"), 1500);
+    }
+
+    // Initialise.
+    setMode("encode");
+  </script>
+  <footer class="site-footer" style="text-align:center;padding:24px 16px;margin-top:32px;color:#94a3b8;font-size:13px;line-height:1.5;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">&copy; 2025&ndash;2026 <a href="https://github.com/setnev" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:none">Steven Peterson</a></footer>
+</body>
+</html>
