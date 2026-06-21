@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Resume Analyzer</title>
+<!--
+  Resume Analyzer — a single-file, offline-first web app.
+  ============================================================
+  Everything (HTML, CSS, JS) lives in this one file. It works by opening the
+  file directly via file:// — no server, no build step, no bundled libraries.
+
+  PRIVACY: Your API key and all text stay in THIS browser (localStorage).
+  No analytics. The only network calls made are to the LLM provider you
+  configure in Settings.
+
+  The PROVIDER MODULE (callLLM + Settings) is shared across our AI apps and is
+  intentionally kept identical between them.
+-->
+<style>
+  /* ---------- Theme tokens ---------- */
+  :root {
+    --bg: #0f172a;
+    --panel: #1e293b;
+    --panel-2: #273449;
+    --accent: #38bdf8;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --good: #34d399;
+    --warn: #fbbf24;
+    --bad: #f87171;
+    --radius: 14px;
+    --radius-sm: 12px;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+      Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 16px;
+    line-height: 1.5;
+  }
+
+  /* ---------- Layout ---------- */
+  .app {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 20px 16px 64px;
+  }
+
+  header.topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+
+  .title-wrap { display: flex; align-items: center; gap: 10px; min-width: 0; }
+
+  h1 {
+    font-size: 1.4rem;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .subtitle {
+    color: var(--muted);
+    font-size: 0.85rem;
+    margin: 0 0 18px;
+  }
+
+  /* ---------- Buttons ---------- */
+  button {
+    font-family: inherit;
+    font-size: 0.95rem;
+    cursor: pointer;
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 10px 16px;
+    color: var(--bg);
+    background: var(--accent);
+    font-weight: 600;
+    transition: filter 0.15s ease, opacity 0.15s ease;
+  }
+  button:hover:not(:disabled) { filter: brightness(1.1); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  button.secondary {
+    background: var(--panel-2);
+    color: var(--text);
+  }
+  button.icon {
+    background: var(--panel-2);
+    color: var(--text);
+    padding: 9px 11px;
+    font-size: 1.1rem;
+    line-height: 1;
+  }
+
+  /* ---------- Panels & inputs ---------- */
+  .panel {
+    background: var(--panel);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+
+  label.field-label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+
+  textarea, input[type="text"], input[type="password"], select {
+    width: 100%;
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid #334155;
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    font-family: inherit;
+    font-size: 0.95rem;
+    resize: vertical;
+  }
+  textarea:focus, input:focus, select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  textarea.resume { min-height: 220px; }
+  textarea.jobdesc { min-height: 110px; }
+
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .grow { flex: 1 1 auto; min-width: 0; }
+
+  .file-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+  }
+  .file-row .hint { color: var(--muted); font-size: 0.8rem; }
+
+  /* visually-hidden but accessible file input trigger */
+  input[type="file"] { display: none; }
+  .filebtn {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid #334155;
+    border-radius: var(--radius-sm);
+    padding: 8px 14px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .filebtn:hover { filter: brightness(1.15); }
+
+  .privacy {
+    color: var(--muted);
+    font-size: 0.78rem;
+    margin-top: 12px;
+    line-height: 1.45;
+  }
+
+  /* ---------- Result area ---------- */
+  #result {
+    white-space: normal;
+    word-wrap: break-word;
+  }
+  #result h2, #result h3 {
+    color: var(--accent);
+    margin: 18px 0 6px;
+    font-size: 1.05rem;
+  }
+  #result h2:first-child, #result h3:first-child { margin-top: 0; }
+  #result ul { margin: 6px 0 6px 0; padding-left: 22px; }
+  #result li { margin: 3px 0; }
+  #result p { margin: 6px 0; }
+  #result strong { color: var(--text); }
+  #result code {
+    background: var(--panel-2);
+    padding: 1px 5px;
+    border-radius: 6px;
+    font-size: 0.9em;
+  }
+
+  .placeholder { color: var(--muted); font-style: italic; }
+
+  /* ---------- Status / errors ---------- */
+  .status { display: flex; align-items: center; gap: 10px; color: var(--muted); }
+  .spinner {
+    width: 18px; height: 18px;
+    border: 3px solid #334155;
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .banner {
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    margin-bottom: 14px;
+    font-size: 0.9rem;
+  }
+  .banner.error { background: rgba(248,113,113,0.12); border: 1px solid var(--bad); color: var(--bad); }
+  .banner.warn  { background: rgba(251,191,36,0.12);  border: 1px solid var(--warn); color: var(--warn); }
+  .banner a { color: inherit; font-weight: 700; }
+
+  .result-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    gap: 10px;
+  }
+  .result-toolbar h2 { color: var(--text); font-size: 1.1rem; margin: 0; }
+
+  /* ---------- Settings modal ---------- */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: none;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 24px 14px;
+    overflow-y: auto;
+    z-index: 50;
+  }
+  .overlay.open { display: flex; }
+  .modal {
+    background: var(--panel);
+    border-radius: var(--radius);
+    padding: 20px;
+    width: 100%;
+    max-width: 520px;
+  }
+  .modal h2 { margin: 0 0 4px; font-size: 1.2rem; }
+  .modal .field { margin-bottom: 14px; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 6px; }
+  .hidden { display: none !important; }
+
+  @media (max-width: 520px) {
+    h1 { font-size: 1.2rem; }
+    .app { padding: 14px 12px 48px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="title-wrap">
+      <h1>📄 Resume Analyzer</h1>
+    </div>
+    <button class="icon" id="openSettings" title="Settings" aria-label="Settings">⚙️</button>
+  </header>
+  <p class="subtitle">
+    Paste your resume, optionally add a job description, and get AI-powered feedback.
+  </p>
+
+  <!-- Inputs -->
+  <section class="panel">
+    <label class="field-label" for="resume">Resume text</label>
+    <textarea id="resume" class="resume" placeholder="Paste your resume here..."></textarea>
+    <div class="file-row">
+      <label class="filebtn" for="resumeFile">Load .txt / .md file</label>
+      <input type="file" id="resumeFile" accept=".txt,.md,text/plain,text/markdown" />
+      <span class="hint">Text files only — PDFs/Word aren't parsed, paste their text instead.</span>
+    </div>
+  </section>
+
+  <section class="panel">
+    <label class="field-label" for="jobdesc">Target job description <span style="font-weight:400">(optional)</span></label>
+    <textarea id="jobdesc" class="jobdesc" placeholder="Paste the job posting you're targeting to get tailored keyword & fit feedback..."></textarea>
+  </section>
+
+  <div class="row" style="margin-bottom: 16px;">
+    <button id="analyzeBtn">Analyze</button>
+    <button class="secondary" id="clearBtn">Clear</button>
+  </div>
+
+  <!-- Result -->
+  <section class="panel" id="resultPanel">
+    <div class="result-toolbar">
+      <h2>Analysis</h2>
+      <button class="secondary" id="copyBtn" disabled>Copy result</button>
+    </div>
+    <div id="statusArea"></div>
+    <div id="result"><p class="placeholder">Your analysis will appear here.</p></div>
+  </section>
+
+  <p class="privacy">
+    🔒 Your API key is stored only in this browser; your text is sent only to the AI
+    provider you configure. No analytics, no server of ours. A browser-stored key is
+    visible to anyone with access to this device.
+  </p>
+</div>
+
+<!-- ---------- Settings modal ---------- -->
+<div class="overlay" id="settingsOverlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <h2 id="settingsTitle">Settings</h2>
+    <p class="subtitle" style="margin-bottom:16px;">
+      Configure your AI provider. All values are saved in this browser only.
+    </p>
+
+    <div class="field">
+      <label class="field-label" for="provider">Provider</label>
+      <select id="provider">
+        <option value="claude">Claude (Anthropic)</option>
+        <option value="openai">OpenAI-compatible</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label class="field-label" for="apiKey">API key</label>
+      <input type="password" id="apiKey" placeholder="sk-..." autocomplete="off" />
+    </div>
+
+    <div class="field" id="baseUrlField">
+      <label class="field-label" for="baseUrl">Base URL</label>
+      <input type="text" id="baseUrl" placeholder="https://api.openai.com/v1" />
+    </div>
+
+    <div class="field">
+      <label class="field-label" for="model">Model</label>
+      <input type="text" id="model" list="modelSuggestions" placeholder="model name" />
+      <datalist id="modelSuggestions"></datalist>
+    </div>
+
+    <div class="modal-actions">
+      <button class="secondary" id="cancelSettings">Cancel</button>
+      <button id="saveSettings">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   SHARED PROVIDER MODULE
+   ============================================================
+   This block (settings persistence + callLLM) is identical across our AI
+   apps. Keep it in sync.
+*/
+
+const LS_KEY = "ai_provider_settings_v1";
+
+// Model suggestion lists per provider.
+const MODEL_SUGGESTIONS = {
+  claude: ["claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"],
+  openai: ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini"],
+};
+
+// Sensible defaults.
+const DEFAULTS = {
+  provider: "claude",
+  apiKey: "",
+  baseUrl: "https://api.openai.com/v1",
+  model: "claude-opus-4-8",
+};
+
+// Load settings from localStorage, merged over defaults.
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return { ...DEFAULTS };
+    return { ...DEFAULTS, ...JSON.parse(raw) };
+  } catch {
+    return { ...DEFAULTS };
+  }
+}
+
+// Save settings object to localStorage.
+function saveSettings(settings) {
+  localStorage.setItem(LS_KEY, JSON.stringify(settings));
+}
+
+/**
+ * callLLM — the shared LLM client.
+ * @param {{system: string, user: string, maxTokens?: number}} opts
+ * @returns {Promise<string>} the assistant's text response
+ *
+ * Reads the current provider config from localStorage. Throws an Error with a
+ * human-friendly message on failure.
+ */
+async function callLLM({ system, user, maxTokens }) {
+  const s = loadSettings();
+  if (!s.apiKey) {
+    throw new Error("No API key set. Open Settings (⚙️) and add your key.");
+  }
+  const max_tokens = maxTokens || 2048;
+
+  if (s.provider === "claude") {
+    return await callClaude(s, system, user, max_tokens);
+  } else {
+    return await callOpenAICompatible(s, system, user, max_tokens);
+  }
+}
+
+// --- Claude (Anthropic) ---
+async function callClaude(s, system, user, max_tokens) {
+  const model = s.model || "claude-opus-4-8";
+  let resp;
+  try {
+    resp = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": s.apiKey,
+        "anthropic-version": "2023-06-01",
+        // Required so the API accepts direct browser (CORS) requests.
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens,
+        system,
+        messages: [{ role: "user", content: user }],
+      }),
+    });
+  } catch (e) {
+    // Network-level failure (no connection, CORS block, etc.)
+    throw new Error(
+      "Network error reaching Anthropic. Check your connection and API key. " +
+      "If this persists, your environment may be blocking the request (CORS)."
+    );
+  }
+
+  if (!resp.ok) {
+    const detail = await readErrorBody(resp);
+    throw new Error(`Anthropic API error (${resp.status}): ${detail}`);
+  }
+
+  const data = await resp.json();
+
+  // A safety refusal returns HTTP 200 with stop_reason "refusal".
+  if (data.stop_reason === "refusal") {
+    throw new Error(
+      "The model declined to respond to this request (safety refusal). " +
+      "Try rephrasing or removing sensitive content."
+    );
+  }
+
+  // content is an array of blocks; keep only text blocks and join them.
+  const text = (data.content || [])
+    .filter((b) => b.type === "text")
+    .map((b) => b.text)
+    .join("");
+
+  if (!text) throw new Error("The model returned an empty response.");
+  return text;
+}
+
+// --- OpenAI-compatible ---
+async function callOpenAICompatible(s, system, user, max_tokens) {
+  const base = (s.baseUrl || DEFAULTS.baseUrl).replace(/\/$/, "");
+  const model = s.model || "gpt-4o-mini";
+  let resp;
+  try {
+    resp = await fetch(`${base}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        Authorization: `Bearer ${s.apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+      }),
+    });
+  } catch (e) {
+    throw new Error(
+      "Network error reaching the API. Check the Base URL, your connection, " +
+      "and whether the endpoint allows browser (CORS) requests."
+    );
+  }
+
+  if (!resp.ok) {
+    const detail = await readErrorBody(resp);
+    throw new Error(`API error (${resp.status}): ${detail}`);
+  }
+
+  const data = await resp.json();
+  const text = data?.choices?.[0]?.message?.content;
+  if (!text) throw new Error("The model returned an empty response.");
+  return text;
+}
+
+// Best-effort extraction of a readable error message from an HTTP error body.
+async function readErrorBody(resp) {
+  try {
+    const body = await resp.text();
+    try {
+      const j = JSON.parse(body);
+      return j?.error?.message || j?.message || body.slice(0, 400);
+    } catch {
+      return body.slice(0, 400) || resp.statusText;
+    }
+  } catch {
+    return resp.statusText || "unknown error";
+  }
+}
+
+/* ============================================================
+   SETTINGS UI WIRING
+   ============================================================ */
+
+const els = {
+  openSettings: document.getElementById("openSettings"),
+  overlay: document.getElementById("settingsOverlay"),
+  provider: document.getElementById("provider"),
+  apiKey: document.getElementById("apiKey"),
+  baseUrl: document.getElementById("baseUrl"),
+  baseUrlField: document.getElementById("baseUrlField"),
+  model: document.getElementById("model"),
+  modelSuggestions: document.getElementById("modelSuggestions"),
+  save: document.getElementById("saveSettings"),
+  cancel: document.getElementById("cancelSettings"),
+};
+
+// Populate the datalist of model suggestions for the current provider.
+function refreshModelSuggestions(provider) {
+  els.modelSuggestions.innerHTML = "";
+  (MODEL_SUGGESTIONS[provider] || []).forEach((m) => {
+    const o = document.createElement("option");
+    o.value = m;
+    els.modelSuggestions.appendChild(o);
+  });
+}
+
+// Show/hide the Base URL field (only relevant for OpenAI-compatible).
+function toggleBaseUrl(provider) {
+  els.baseUrlField.classList.toggle("hidden", provider === "claude");
+}
+
+// Fill the modal fields from saved settings.
+function populateSettingsForm() {
+  const s = loadSettings();
+  els.provider.value = s.provider;
+  els.apiKey.value = s.apiKey;
+  els.baseUrl.value = s.baseUrl;
+  els.model.value = s.model;
+  refreshModelSuggestions(s.provider);
+  toggleBaseUrl(s.provider);
+}
+
+function openSettings() {
+  populateSettingsForm();
+  els.overlay.classList.add("open");
+}
+function closeSettings() {
+  els.overlay.classList.remove("open");
+}
+
+// When provider changes in the form: update suggestions, base-url visibility,
+// and auto-suggest a default model if the field is empty.
+els.provider.addEventListener("change", () => {
+  const p = els.provider.value;
+  refreshModelSuggestions(p);
+  toggleBaseUrl(p);
+  if (!els.model.value.trim()) {
+    els.model.value = MODEL_SUGGESTIONS[p][0];
+  }
+});
+
+els.openSettings.addEventListener("click", openSettings);
+els.cancel.addEventListener("click", closeSettings);
+els.overlay.addEventListener("click", (e) => {
+  if (e.target === els.overlay) closeSettings();
+});
+
+els.save.addEventListener("click", () => {
+  const settings = {
+    provider: els.provider.value,
+    apiKey: els.apiKey.value.trim(),
+    baseUrl: els.baseUrl.value.trim() || DEFAULTS.baseUrl,
+    model: els.model.value.trim() || MODEL_SUGGESTIONS[els.provider.value][0],
+  };
+  saveSettings(settings);
+  closeSettings();
+});
+
+/* ============================================================
+   APP LOGIC — Resume Analyzer
+   ============================================================ */
+
+const resumeEl = document.getElementById("resume");
+const jobdescEl = document.getElementById("jobdesc");
+const resumeFileEl = document.getElementById("resumeFile");
+const analyzeBtn = document.getElementById("analyzeBtn");
+const clearBtn = document.getElementById("clearBtn");
+const copyBtn = document.getElementById("copyBtn");
+const statusArea = document.getElementById("statusArea");
+const resultEl = document.getElementById("result");
+
+let lastResultText = ""; // raw text of the latest analysis (for copy)
+
+// --- File loading (.txt / .md only) ---
+resumeFileEl.addEventListener("change", () => {
+  const file = resumeFileEl.files && resumeFileEl.files[0];
+  if (!file) return;
+
+  const name = file.name.toLowerCase();
+  const looksText =
+    name.endsWith(".txt") ||
+    name.endsWith(".md") ||
+    file.type === "text/plain" ||
+    file.type === "text/markdown" ||
+    file.type === "";
+
+  if (!looksText) {
+    showBanner(
+      "That doesn't look like a plain-text file. PDFs and Word documents " +
+        "aren't parsed — please open the document, copy its text, and paste it here.",
+      "warn"
+    );
+    resumeFileEl.value = "";
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    resumeEl.value = String(reader.result || "");
+    clearBanner();
+  };
+  reader.onerror = () => {
+    showBanner("Could not read that file. Try pasting the text instead.", "error");
+  };
+  reader.readAsText(file);
+  resumeFileEl.value = ""; // allow re-selecting the same file later
+});
+
+// --- Status / banner helpers ---
+function showBanner(msg, kind) {
+  statusArea.innerHTML = "";
+  const div = document.createElement("div");
+  div.className = "banner " + (kind || "error");
+  div.textContent = msg;
+  statusArea.appendChild(div);
+}
+function clearBanner() {
+  statusArea.innerHTML = "";
+}
+function showLoading() {
+  statusArea.innerHTML =
+    '<div class="status"><div class="spinner"></div><span>Analyzing your resume…</span></div>';
+}
+
+// --- The system prompt that shapes the analysis ---
+const SYSTEM_PROMPT = `You are an expert resume reviewer and career coach with deep knowledge of \
+Applicant Tracking Systems (ATS), hiring practices, and effective resume writing.
+
+Analyze the resume the user provides. If a target job description is included, \
+tailor your analysis to that role specifically.
+
+Return clean, readable feedback organized into these clearly-labelled sections, \
+in this order:
+
+# Overall Impression
+A short paragraph plus an explicit overall score out of 100.
+
+# Strengths
+Bullet points of what the resume does well.
+
+# Weaknesses
+Bullet points of concrete problems and gaps.
+
+# Missing Keywords & Skills
+Bullet points of important keywords or skills that are missing — especially \
+relative to the target job description if one was provided.
+
+# ATS-Friendliness
+Notes on formatting, parseability, section headers, and anything that could hurt \
+the resume in automated screening.
+
+# Suggested Bullet Rewrites
+Concrete before/after bullet-point rewrites that are stronger, more \
+quantified, and impact-focused.
+
+Formatting rules: use markdown headings ("# " for sections), "- " for bullets, \
+and **bold** for emphasis. Be specific and actionable. Do not invent facts about \
+the candidate that aren't in the resume.`;
+
+// --- Analyze handler ---
+analyzeBtn.addEventListener("click", async () => {
+  const resume = resumeEl.value.trim();
+  const jobdesc = jobdescEl.value.trim();
+
+  if (!resume) {
+    showBanner("Please paste your resume text first.", "warn");
+    return;
+  }
+
+  // Prompt the user to configure a key if none is set.
+  const settings = loadSettings();
+  if (!settings.apiKey) {
+    showBanner("No API key set yet. Opening Settings…", "warn");
+    openSettings();
+    return;
+  }
+
+  // Build the user message.
+  let userMsg = "Here is the resume to analyze:\n\n" + resume;
+  if (jobdesc) {
+    userMsg +=
+      "\n\n---\n\nHere is the target job description to tailor the analysis to:\n\n" +
+      jobdesc;
+  }
+
+  // Loading state.
+  analyzeBtn.disabled = true;
+  copyBtn.disabled = true;
+  clearBanner();
+  showLoading();
+  resultEl.innerHTML = '<p class="placeholder">Working…</p>';
+
+  try {
+    const text = await callLLM({
+      system: SYSTEM_PROMPT,
+      user: userMsg,
+      maxTokens: 3000,
+    });
+    lastResultText = text;
+    clearBanner();
+    resultEl.innerHTML = renderMarkdownish(text);
+    copyBtn.disabled = false;
+  } catch (err) {
+    resultEl.innerHTML = '<p class="placeholder">No analysis yet.</p>';
+    showBanner(err.message || String(err), "error");
+  } finally {
+    analyzeBtn.disabled = false;
+  }
+});
+
+// --- Clear handler ---
+clearBtn.addEventListener("click", () => {
+  resumeEl.value = "";
+  jobdescEl.value = "";
+  lastResultText = "";
+  clearBanner();
+  resultEl.innerHTML = '<p class="placeholder">Your analysis will appear here.</p>';
+  copyBtn.disabled = true;
+});
+
+// --- Copy handler ---
+copyBtn.addEventListener("click", async () => {
+  if (!lastResultText) return;
+  try {
+    await navigator.clipboard.writeText(lastResultText);
+    const orig = copyBtn.textContent;
+    copyBtn.textContent = "Copied!";
+    setTimeout(() => (copyBtn.textContent = orig), 1500);
+  } catch {
+    // Fallback for file:// contexts where the Clipboard API may be unavailable.
+    const ta = document.createElement("textarea");
+    ta.value = lastResultText;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); } catch {}
+    document.body.removeChild(ta);
+    const orig = copyBtn.textContent;
+    copyBtn.textContent = "Copied!";
+    setTimeout(() => (copyBtn.textContent = orig), 1500);
+  }
+});
+
+/* ============================================================
+   Tiny markdown-ish renderer
+   ============================================================
+   Supports: # / ## / ### headings, - bullets, **bold**, `code`.
+   HTML is escaped FIRST to prevent injection from model output.
+*/
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// Inline formatting (**bold**, `code`) applied to already-escaped text.
+function inlineFormat(escaped) {
+  return escaped
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/`([^`]+)`/g, "<code>$1</code>");
+}
+
+function renderMarkdownish(raw) {
+  const lines = escapeHtml(raw).split(/\r?\n/);
+  let html = "";
+  let inList = false;
+
+  const closeList = () => {
+    if (inList) { html += "</ul>"; inList = false; }
+  };
+
+  for (let line of lines) {
+    const trimmed = line.trim();
+
+    if (trimmed === "") { closeList(); continue; }
+
+    // Headings: ###, ##, # (map to h3/h3/h2 for visual hierarchy)
+    let m;
+    if ((m = trimmed.match(/^###\s+(.*)$/))) {
+      closeList();
+      html += "<h3>" + inlineFormat(m[1]) + "</h3>";
+    } else if ((m = trimmed.match(/^##\s+(.*)$/))) {
+      closeList();
+      html += "<h3>" + inlineFormat(m[1]) + "</h3>";
+    } else if ((m = trimmed.match(/^#\s+(.*)$/))) {
+      closeList();
+      html += "<h2>" + inlineFormat(m[1]) + "</h2>";
+    } else if ((m = trimmed.match(/^[-*]\s+(.*)$/))) {
+      // Bullet item
+      if (!inList) { html += "<ul>"; inList = true; }
+      html += "<li>" + inlineFormat(m[1]) + "</li>";
+    } else {
+      // Plain paragraph line
+      closeList();
+      html += "<p>" + inlineFormat(trimmed) + "</p>";
+    }
+  }
+  closeList();
+  return html || '<p class="placeholder">No content.</p>';
+}
+
+// Initialize the modal form state once on load (in case it's opened).
+populateSettingsForm();
+</script>
+  <footer class="site-footer" style="text-align:center;padding:24px 16px;margin-top:32px;color:#94a3b8;font-size:13px;line-height:1.5;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">&copy; 2025&ndash;2026 <a href="https://github.com/setnev" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:none">Steven Peterson</a></footer>
+</body>
+</html>
