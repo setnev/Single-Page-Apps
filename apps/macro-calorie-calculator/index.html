@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Macro / Calorie Calculator</title>
+<style>
+  /* ===== Theme tokens ===== */
+  :root {
+    --bg: #0f172a;
+    --panel: #1e293b;
+    --panel-2: #273449;
+    --accent: #38bdf8;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --good: #34d399;
+    --warn: #fbbf24;
+    --kid1: #f472b6;  /* used for protein in donut */
+    --kid2: #60a5fa;  /* used for carbs in donut */
+    --fat: #fbbf24;   /* fat colour (reuse warn tone) */
+    --radius: 14px;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+            Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    line-height: 1.5;
+  }
+
+  .wrap {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 20px 16px 60px;
+  }
+
+  header h1 {
+    margin: 0 0 4px;
+    font-size: 1.6rem;
+  }
+  header p.sub {
+    margin: 0 0 20px;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+
+  /* ===== Layout grid ===== */
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width: 760px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: var(--panel);
+    border-radius: var(--radius);
+    padding: 18px;
+    border: 1px solid rgba(255,255,255,0.04);
+  }
+  .panel h2 {
+    margin: 0 0 14px;
+    font-size: 1.05rem;
+    color: var(--accent);
+  }
+
+  /* ===== Form controls ===== */
+  label.field {
+    display: block;
+    margin-bottom: 14px;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  label.field > span.lbl {
+    display: block;
+    margin-bottom: 6px;
+  }
+
+  input[type="number"], select {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    font-size: 1rem;
+    font-family: inherit;
+  }
+  input[type="number"]:focus, select:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 0;
+  }
+
+  /* Side-by-side inputs (e.g. height ft/in) */
+  .row {
+    display: flex;
+    gap: 10px;
+  }
+  .row > * { flex: 1; }
+
+  /* ===== Toggle groups (segmented buttons) ===== */
+  .toggle {
+    display: inline-flex;
+    background: var(--panel-2);
+    border-radius: 10px;
+    padding: 3px;
+    gap: 3px;
+    flex-wrap: wrap;
+  }
+  .toggle button {
+    background: transparent;
+    color: var(--muted);
+    border: none;
+    padding: 8px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-family: inherit;
+  }
+  .toggle button.active {
+    background: var(--accent);
+    color: #06283d;
+    font-weight: 600;
+  }
+
+  .toggle-label {
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-bottom: 6px;
+    display: block;
+  }
+  .toggle-wrap { margin-bottom: 14px; }
+
+  /* ===== Results ===== */
+  .big-num {
+    font-size: 2.4rem;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1;
+  }
+  .big-num small { font-size: 1rem; color: var(--muted); font-weight: 400; }
+
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    font-size: 0.95rem;
+  }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-row .k { color: var(--muted); }
+  .stat-row .v { font-weight: 600; }
+
+  /* ===== Macro table ===== */
+  table.macros {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 6px;
+  }
+  table.macros th, table.macros td {
+    text-align: right;
+    padding: 8px 6px;
+    font-size: 0.9rem;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  table.macros th:first-child, table.macros td:first-child { text-align: left; }
+  table.macros th { color: var(--muted); font-weight: 500; }
+  .dot {
+    display: inline-block;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+
+  /* Custom % inputs */
+  .custom-macros { display: none; }
+  .custom-macros.show { display: block; }
+  .custom-macros .row label { font-size: 0.8rem; color: var(--muted); }
+  .sum-note { font-size: 0.85rem; margin-top: 4px; }
+  .sum-ok { color: var(--good); }
+  .sum-bad { color: var(--warn); }
+
+  /* Donut */
+  .donut-wrap {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .legend { font-size: 0.9rem; }
+  .legend div { margin: 4px 0; }
+
+  .bmi-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+
+  .disclaimer {
+    margin-top: 22px;
+    padding: 14px 16px;
+    background: var(--panel-2);
+    border-left: 3px solid var(--warn);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .disclaimer strong { color: var(--warn); }
+
+  .full { grid-column: 1 / -1; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🥗 Macro / Calorie Calculator</h1>
+    <p class="sub">Estimate your daily calories and macronutrient targets. Everything runs locally in your browser.</p>
+  </header>
+
+  <div class="grid">
+    <!-- ===================== INPUTS ===================== -->
+    <section class="panel">
+      <h2>Your Details</h2>
+
+      <!-- Unit system toggle -->
+      <div class="toggle-wrap">
+        <span class="toggle-label">Units</span>
+        <div class="toggle" id="unitToggle">
+          <button data-unit="metric" class="active">Metric (kg/cm)</button>
+          <button data-unit="imperial">Imperial (lb/ft)</button>
+        </div>
+      </div>
+
+      <!-- Sex toggle -->
+      <div class="toggle-wrap">
+        <span class="toggle-label">Sex</span>
+        <div class="toggle" id="sexToggle">
+          <button data-sex="male" class="active">Male</button>
+          <button data-sex="female">Female</button>
+        </div>
+      </div>
+
+      <label class="field">
+        <span class="lbl">Age (years)</span>
+        <input type="number" id="age" value="30" min="10" max="100" />
+      </label>
+
+      <!-- Height: metric = cm, imperial = ft + in -->
+      <label class="field" id="heightMetricWrap">
+        <span class="lbl">Height (cm)</span>
+        <input type="number" id="heightCm" value="175" min="100" max="250" />
+      </label>
+
+      <div class="field" id="heightImperialWrap" style="display:none;">
+        <span class="lbl">Height (ft / in)</span>
+        <div class="row">
+          <input type="number" id="heightFt" value="5" min="3" max="8" placeholder="ft" />
+          <input type="number" id="heightIn" value="9" min="0" max="11" placeholder="in" />
+        </div>
+      </div>
+
+      <!-- Weight: metric = kg, imperial = lb -->
+      <label class="field">
+        <span class="lbl" id="weightLbl">Weight (kg)</span>
+        <input type="number" id="weight" value="75" min="20" max="400" step="0.1" />
+      </label>
+
+      <label class="field">
+        <span class="lbl">Activity level</span>
+        <select id="activity">
+          <option value="1.2">Sedentary (little/no exercise)</option>
+          <option value="1.375">Lightly active (1–3 days/wk)</option>
+          <option value="1.55" selected>Moderately active (3–5 days/wk)</option>
+          <option value="1.725">Very active (6–7 days/wk)</option>
+          <option value="1.9">Extra active (hard job / 2x training)</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span class="lbl">Goal</span>
+        <select id="goal">
+          <option value="lose">Lose weight (−20%)</option>
+          <option value="maintain" selected>Maintain weight</option>
+          <option value="gain">Gain weight (+15%)</option>
+        </select>
+      </label>
+    </section>
+
+    <!-- ===================== RESULTS ===================== -->
+    <section class="panel">
+      <h2>Daily Targets</h2>
+
+      <div style="margin-bottom:16px;">
+        <div class="big-num"><span id="targetCals">0</span> <small>kcal / day</small></div>
+        <div style="color:var(--muted);font-size:0.85rem;margin-top:4px;" id="goalNote"></div>
+      </div>
+
+      <div class="stat-row"><span class="k">BMR (at rest)</span><span class="v"><span id="bmr">0</span> kcal</span></div>
+      <div class="stat-row"><span class="k">TDEE (maintenance)</span><span class="v"><span id="tdee">0</span> kcal</span></div>
+      <div class="stat-row"><span class="k">BMI</span><span class="v"><span id="bmi">0</span> <span class="bmi-badge" id="bmiBadge"></span></span></div>
+      <div class="stat-row"><span class="k">Healthy weight range</span><span class="v" id="healthyRange">–</span></div>
+    </section>
+
+    <!-- ===================== MACROS ===================== -->
+    <section class="panel full">
+      <h2>Macro Split</h2>
+
+      <div class="toggle-wrap">
+        <span class="toggle-label">Preset</span>
+        <div class="toggle" id="presetToggle">
+          <button data-preset="balanced" class="active">Balanced</button>
+          <button data-preset="highprotein">High Protein</button>
+          <button data-preset="lowcarb">Low Carb</button>
+          <button data-preset="keto">Keto</button>
+          <button data-preset="custom">Custom</button>
+        </div>
+      </div>
+
+      <!-- Custom percentage inputs (hidden unless preset = custom) -->
+      <div class="custom-macros" id="customMacros">
+        <div class="row">
+          <label class="field" style="margin-bottom:6px;">
+            <span class="lbl">Protein %</span>
+            <input type="number" id="pProtein" value="30" min="0" max="100" />
+          </label>
+          <label class="field" style="margin-bottom:6px;">
+            <span class="lbl">Carbs %</span>
+            <input type="number" id="pCarbs" value="40" min="0" max="100" />
+          </label>
+          <label class="field" style="margin-bottom:6px;">
+            <span class="lbl">Fat %</span>
+            <input type="number" id="pFat" value="30" min="0" max="100" />
+          </label>
+        </div>
+        <div class="sum-note" id="sumNote"></div>
+      </div>
+
+      <div class="grid" style="margin-top:10px;align-items:center;">
+        <!-- Macro table -->
+        <table class="macros">
+          <thead>
+            <tr>
+              <th>Macro</th>
+              <th>%</th>
+              <th>Grams</th>
+              <th>kcal</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="dot" style="background:var(--kid1)"></span>Protein</td>
+              <td id="mProtPct">0%</td>
+              <td id="mProtG">0 g</td>
+              <td id="mProtCal">0</td>
+            </tr>
+            <tr>
+              <td><span class="dot" style="background:var(--kid2)"></span>Carbs</td>
+              <td id="mCarbPct">0%</td>
+              <td id="mCarbG">0 g</td>
+              <td id="mCarbCal">0</td>
+            </tr>
+            <tr>
+              <td><span class="dot" style="background:var(--fat)"></span>Fat</td>
+              <td id="mFatPct">0%</td>
+              <td id="mFatG">0 g</td>
+              <td id="mFatCal">0</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Donut chart -->
+        <div class="donut-wrap">
+          <canvas id="donut" width="160" height="160" aria-label="Macro split donut chart"></canvas>
+          <div class="legend">
+            <div><span class="dot" style="background:var(--kid1)"></span>Protein</div>
+            <div><span class="dot" style="background:var(--kid2)"></span>Carbs</div>
+            <div><span class="dot" style="background:var(--fat)"></span>Fat</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="disclaimer">
+    <strong>Heads up:</strong> These numbers are a <strong>general estimate, not medical advice</strong>.
+    Formulas are population averages and don't account for your individual physiology, health conditions, or
+    body composition. Talk to a doctor or registered dietitian before making significant changes to your diet
+    or training.
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   Macro / Calorie Calculator — all logic, no dependencies.
+
+   Pipeline:
+   1. Read inputs (converting imperial -> metric internally).
+   2. BMR via Mifflin-St Jeor.
+   3. TDEE = BMR * activity factor.
+   4. Target calories = TDEE adjusted by goal (deficit/surplus).
+   5. Macro grams from the chosen split (4/4/9 kcal per gram).
+   6. BMI + healthy weight range from height.
+   7. Draw a donut of the split.
+   ========================================================================= */
+
+/* ---- App state ---- */
+const state = {
+  unit: 'metric',     // 'metric' | 'imperial'
+  sex: 'male',        // 'male' | 'female'
+  preset: 'balanced', // balanced | highprotein | lowcarb | keto | custom
+};
+
+/* Macro presets as [protein%, carbs%, fat%] */
+const PRESETS = {
+  balanced:    [30, 40, 30],
+  highprotein: [40, 35, 25],
+  lowcarb:     [35, 20, 45],
+  keto:        [25, 5, 70],
+};
+
+/* Goal adjustment factors applied to TDEE */
+const GOALS = {
+  lose:     { factor: 0.80, note: '20% calorie deficit for fat loss.' },
+  maintain: { factor: 1.00, note: 'Calories balanced to hold your current weight.' },
+  gain:     { factor: 1.15, note: '15% calorie surplus for lean gains.' },
+};
+
+/* ---- Small DOM helper ---- */
+const $ = (id) => document.getElementById(id);
+
+/* =========================================================================
+   Unit handling
+   ========================================================================= */
+
+/* Convert raw form inputs to metric: returns { heightCm, weightKg }. */
+function getMetricMeasurements() {
+  let heightCm, weightKg;
+
+  if (state.unit === 'metric') {
+    heightCm = parseFloat($('heightCm').value) || 0;
+    weightKg = parseFloat($('weight').value) || 0;
+  } else {
+    // Imperial -> metric
+    const ft = parseFloat($('heightFt').value) || 0;
+    const inch = parseFloat($('heightIn').value) || 0;
+    const totalInches = ft * 12 + inch;
+    heightCm = totalInches * 2.54;           // 1 inch = 2.54 cm
+    const lb = parseFloat($('weight').value) || 0;
+    weightKg = lb * 0.45359237;              // 1 lb = 0.4536 kg
+  }
+  return { heightCm, weightKg };
+}
+
+/* When the user flips the unit toggle, convert displayed values so the
+   physical measurement stays the same. */
+function switchUnits(newUnit) {
+  if (newUnit === state.unit) return;
+
+  if (newUnit === 'imperial') {
+    // metric -> imperial
+    const cm = parseFloat($('heightCm').value) || 0;
+    const kg = parseFloat($('weight').value) || 0;
+    const totalInches = cm / 2.54;
+    const ft = Math.floor(totalInches / 12);
+    const inch = Math.round(totalInches - ft * 12);
+    $('heightFt').value = ft;
+    $('heightIn').value = inch;
+    $('weight').value = (kg / 0.45359237).toFixed(1);
+
+    $('heightMetricWrap').style.display = 'none';
+    $('heightImperialWrap').style.display = 'block';
+    $('weightLbl').textContent = 'Weight (lb)';
+  } else {
+    // imperial -> metric
+    const ft = parseFloat($('heightFt').value) || 0;
+    const inch = parseFloat($('heightIn').value) || 0;
+    const lb = parseFloat($('weight').value) || 0;
+    $('heightCm').value = Math.round((ft * 12 + inch) * 2.54);
+    $('weight').value = (lb * 0.45359237).toFixed(1);
+
+    $('heightMetricWrap').style.display = 'block';
+    $('heightImperialWrap').style.display = 'none';
+    $('weightLbl').textContent = 'Weight (kg)';
+  }
+
+  state.unit = newUnit;
+  recalc();
+}
+
+/* =========================================================================
+   Core calculations
+   ========================================================================= */
+
+/* Mifflin-St Jeor BMR equation:
+     men:   BMR = 10*kg + 6.25*cm - 5*age + 5
+     women: BMR = 10*kg + 6.25*cm - 5*age - 161
+   Widely regarded as one of the most accurate predictive equations. */
+function calcBMR(kg, cm, age, sex) {
+  const base = 10 * kg + 6.25 * cm - 5 * age;
+  return sex === 'male' ? base + 5 : base - 161;
+}
+
+/* Resolve the active macro split percentages. */
+function getMacroPercents() {
+  if (state.preset === 'custom') {
+    return [
+      parseFloat($('pProtein').value) || 0,
+      parseFloat($('pCarbs').value) || 0,
+      parseFloat($('pFat').value) || 0,
+    ];
+  }
+  return PRESETS[state.preset];
+}
+
+/* BMI category -> {label, color} for the badge. */
+function bmiCategory(bmi) {
+  if (bmi < 18.5) return { label: 'Underweight', color: 'var(--warn)' };
+  if (bmi < 25)   return { label: 'Healthy', color: 'var(--good)' };
+  if (bmi < 30)   return { label: 'Overweight', color: 'var(--warn)' };
+  return { label: 'Obese', color: 'var(--kid1)' };
+}
+
+/* Format a weight value in the user's current unit. */
+function fmtWeight(kg) {
+  if (state.unit === 'imperial') {
+    return (kg / 0.45359237).toFixed(1) + ' lb';
+  }
+  return kg.toFixed(1) + ' kg';
+}
+
+/* =========================================================================
+   Main recalc — runs live on every input change
+   ========================================================================= */
+function recalc() {
+  const age = parseFloat($('age').value) || 0;
+  const { heightCm, weightKg } = getMetricMeasurements();
+  const activity = parseFloat($('activity').value) || 1.2;
+  const goalKey = $('goal').value;
+
+  // 1-4: energy
+  const bmr = calcBMR(weightKg, heightCm, age, state.sex);
+  const tdee = bmr * activity;
+  const goal = GOALS[goalKey];
+  const target = tdee * goal.factor;
+
+  $('bmr').textContent = Math.round(bmr);
+  $('tdee').textContent = Math.round(tdee);
+  $('targetCals').textContent = Math.round(target);
+  $('goalNote').textContent = goal.note;
+
+  // 5: macros
+  let [pPct, cPct, fPct] = getMacroPercents();
+  const sum = pPct + cPct + fPct;
+
+  // Show whether custom percentages add to 100
+  if (state.preset === 'custom') {
+    const note = $('sumNote');
+    if (Math.round(sum) === 100) {
+      note.textContent = '✓ Sums to 100%';
+      note.className = 'sum-note sum-ok';
+    } else {
+      note.textContent = '⚠ Sums to ' + Math.round(sum) + '% (must equal 100%)';
+      note.className = 'sum-note sum-bad';
+    }
+  }
+
+  // Calories per macro (guard against divide-by-zero on a 0% sum)
+  const safeSum = sum > 0 ? sum : 1;
+  const pCal = target * (pPct / safeSum);
+  const cCal = target * (cPct / safeSum);
+  const fCal = target * (fPct / safeSum);
+
+  // Grams: protein 4 kcal/g, carbs 4 kcal/g, fat 9 kcal/g
+  const pG = pCal / 4;
+  const cG = cCal / 4;
+  const fG = fCal / 9;
+
+  // Normalised display percentages (so they always read out of 100)
+  const dispP = Math.round((pPct / safeSum) * 100);
+  const dispC = Math.round((cPct / safeSum) * 100);
+  const dispF = Math.round((fPct / safeSum) * 100);
+
+  $('mProtPct').textContent = dispP + '%';
+  $('mCarbPct').textContent = dispC + '%';
+  $('mFatPct').textContent = dispF + '%';
+  $('mProtG').textContent = Math.round(pG) + ' g';
+  $('mCarbG').textContent = Math.round(cG) + ' g';
+  $('mFatG').textContent = Math.round(fG) + ' g';
+  $('mProtCal').textContent = Math.round(pCal);
+  $('mCarbCal').textContent = Math.round(cCal);
+  $('mFatCal').textContent = Math.round(fCal);
+
+  // 6: BMI + healthy weight range
+  const hM = heightCm / 100;
+  const bmi = hM > 0 ? weightKg / (hM * hM) : 0;
+  $('bmi').textContent = bmi.toFixed(1);
+  const cat = bmiCategory(bmi);
+  const badge = $('bmiBadge');
+  badge.textContent = cat.label;
+  badge.style.background = cat.color;
+  badge.style.color = '#06283d';
+
+  // Healthy weight range = BMI 18.5 to 24.9 for this height
+  const lowKg = 18.5 * hM * hM;
+  const highKg = 24.9 * hM * hM;
+  $('healthyRange').textContent = hM > 0
+    ? fmtWeight(lowKg) + ' – ' + fmtWeight(highKg)
+    : '–';
+
+  // 7: donut
+  drawDonut([pCal, cCal, fCal]);
+}
+
+/* =========================================================================
+   Donut chart on <canvas> (hand-rolled, no libraries)
+   ========================================================================= */
+function drawDonut(values) {
+  const canvas = $('donut');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const cx = W / 2, cy = H / 2;
+  const outer = 70, inner = 44;
+
+  ctx.clearRect(0, 0, W, H);
+
+  const total = values.reduce((a, b) => a + b, 0);
+  const colors = ['#f472b6', '#60a5fa', '#fbbf24']; // protein, carbs, fat
+
+  // If we have no data, draw a faint placeholder ring.
+  if (total <= 0) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, outer, 0, Math.PI * 2);
+    ctx.arc(cx, cy, inner, 0, Math.PI * 2, true);
+    ctx.fillStyle = '#273449';
+    ctx.fill();
+    return;
+  }
+
+  let start = -Math.PI / 2; // begin at top
+  values.forEach((v, i) => {
+    const slice = (v / total) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, outer, start, start + slice);
+    ctx.closePath();
+    ctx.fillStyle = colors[i];
+    ctx.fill();
+    start += slice;
+  });
+
+  // Punch out the centre to make it a donut.
+  ctx.globalCompositeOperation = 'destination-out';
+  ctx.beginPath();
+  ctx.arc(cx, cy, inner, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+
+  // Centre label = total calories.
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = '600 18px ' + getComputedStyle(document.body).fontFamily;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(Math.round(total), cx, cy - 6);
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '11px ' + getComputedStyle(document.body).fontFamily;
+  ctx.fillText('kcal', cx, cy + 12);
+}
+
+/* =========================================================================
+   Wire up events
+   ========================================================================= */
+
+/* Generic segmented-toggle handler: sets active class + runs callback. */
+function wireToggle(containerId, dataAttr, onSelect) {
+  const container = $(containerId);
+  container.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    [...container.children].forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    onSelect(btn.dataset[dataAttr]);
+  });
+}
+
+wireToggle('unitToggle', 'unit', (u) => switchUnits(u));
+wireToggle('sexToggle', 'sex', (s) => { state.sex = s; recalc(); });
+wireToggle('presetToggle', 'preset', (p) => {
+  state.preset = p;
+  // Show/hide custom % inputs.
+  $('customMacros').classList.toggle('show', p === 'custom');
+  recalc();
+});
+
+// Recalculate live on any input/select change.
+['age','heightCm','heightFt','heightIn','weight','activity','goal',
+ 'pProtein','pCarbs','pFat'].forEach((id) => {
+  const el = $(id);
+  el.addEventListener('input', recalc);
+  el.addEventListener('change', recalc);
+});
+
+// First paint.
+recalc();
+</script>
+  <footer class="site-footer" style="text-align:center;padding:24px 16px;margin-top:32px;color:#94a3b8;font-size:13px;line-height:1.5;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">&copy; 2025&ndash;2026 <a href="https://github.com/setnev" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:none">Steven Peterson</a></footer>
+</body>
+</html>
