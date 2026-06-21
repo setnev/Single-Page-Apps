@@ -1,0 +1,1267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Word Guess</title>
+<style>
+  /* ===========================================================
+     THEME / GLOBAL
+     A dark, Wordle-style theme. All colors live here so they
+     are easy to tweak. No external fonts or libraries.
+     =========================================================== */
+  :root {
+    --bg: #0f172a;          /* page background */
+    --panel: #1e293b;       /* panels / modals */
+    --text: #e2e8f0;        /* primary text */
+    --muted: #94a3b8;       /* secondary text */
+    --border: #334155;      /* tile / key borders */
+    --correct: #538d4e;     /* letter in correct spot (green) */
+    --present: #b59f3b;     /* letter in word, wrong spot (yellow) */
+    --absent: #3a3a3c;      /* letter not in word (gray) */
+    --key: #475569;         /* default keyboard key */
+    --accent: #34d399;      /* buttons / highlights */
+    --tile-size: 58px;      /* recomputed responsively below */
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    /* System font stack — no web fonts to keep it offline. */
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                 Helvetica, Arial, sans-serif, "Apple Color Emoji",
+                 "Segoe UI Emoji";
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100%;
+    -webkit-user-select: none;
+    user-select: none;
+    overflow-x: hidden;
+  }
+
+  /* ===========================================================
+     HEADER
+     =========================================================== */
+  header {
+    width: 100%;
+    max-width: 520px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  header h1 {
+    font-size: 1.5rem;
+    letter-spacing: 0.06em;
+    margin: 0;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .header-btns { display: flex; gap: 6px; }
+
+  .icon-btn {
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-size: 1.25rem;
+    cursor: pointer;
+    padding: 6px 8px;
+    border-radius: 8px;
+    line-height: 1;
+  }
+  .icon-btn:hover { background: rgba(255,255,255,0.08); }
+
+  /* Mode toggle pill */
+  .mode-bar {
+    display: flex;
+    gap: 6px;
+    margin: 12px 0 4px;
+    background: var(--panel);
+    border-radius: 999px;
+    padding: 4px;
+  }
+  .mode-bar button {
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-weight: 600;
+    padding: 6px 16px;
+    border-radius: 999px;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+  .mode-bar button.active {
+    background: var(--accent);
+    color: #06281d;
+  }
+
+  /* ===========================================================
+     BOARD
+     6 rows x 5 columns of tiles.
+     =========================================================== */
+  main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    gap: 14px;
+    padding: 8px 0;
+  }
+
+  #board {
+    display: grid;
+    grid-template-rows: repeat(6, var(--tile-size));
+    gap: 5px;
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: repeat(5, var(--tile-size));
+    gap: 5px;
+  }
+
+  .tile {
+    width: var(--tile-size);
+    height: var(--tile-size);
+    border: 2px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: calc(var(--tile-size) * 0.5);
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--text);
+    background: transparent;
+    /* perspective for the flip */
+    transition: transform 0.1s ease;
+  }
+
+  /* A tile that just received a letter pops slightly. */
+  .tile.pop { animation: pop 0.1s ease; }
+  @keyframes pop {
+    0%   { transform: scale(1); }
+    50%  { transform: scale(1.1); }
+    100% { transform: scale(1); }
+  }
+  .tile.filled { border-color: var(--muted); }
+
+  /* Flip reveal: rotate on X axis; color is swapped at mid-flip via JS. */
+  .tile.flip { animation: flip 0.5s ease forwards; }
+  @keyframes flip {
+    0%   { transform: rotateX(0); }
+    50%  { transform: rotateX(-90deg); }
+    100% { transform: rotateX(0); }
+  }
+
+  .tile.correct { background: var(--correct); border-color: var(--correct); color: #fff; }
+  .tile.present { background: var(--present); border-color: var(--present); color: #fff; }
+  .tile.absent  { background: var(--absent);  border-color: var(--absent);  color: #fff; }
+
+  /* Shake animation for invalid words. */
+  .row.shake { animation: shake 0.5s; }
+  @keyframes shake {
+    10%, 90% { transform: translateX(-2px); }
+    20%, 80% { transform: translateX(4px); }
+    30%, 50%, 70% { transform: translateX(-8px); }
+    40%, 60% { transform: translateX(8px); }
+  }
+
+  /* Bounce winning row. */
+  .row.win .tile { animation: bounce 0.6s ease; }
+  .row.win .tile:nth-child(1) { animation-delay: 0.0s; }
+  .row.win .tile:nth-child(2) { animation-delay: 0.1s; }
+  .row.win .tile:nth-child(3) { animation-delay: 0.2s; }
+  .row.win .tile:nth-child(4) { animation-delay: 0.3s; }
+  .row.win .tile:nth-child(5) { animation-delay: 0.4s; }
+  @keyframes bounce {
+    0%, 20% { transform: translateY(0); }
+    40% { transform: translateY(-24px); }
+    50% { transform: translateY(4px); }
+    60% { transform: translateY(-12px); }
+    80% { transform: translateY(2px); }
+    100% { transform: translateY(0); }
+  }
+
+  /* ===========================================================
+     KEYBOARD
+     =========================================================== */
+  #keyboard {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+    max-width: 500px;
+    padding: 8px 6px 16px;
+  }
+  .kb-row {
+    display: flex;
+    gap: 5px;
+    justify-content: center;
+  }
+  .key {
+    flex: 1;
+    min-width: 0;
+    height: 52px;
+    border: none;
+    border-radius: 6px;
+    background: var(--key);
+    color: var(--text);
+    font-weight: 700;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s ease, transform 0.05s ease;
+  }
+  .key:active { transform: scale(0.94); }
+  .key.wide { flex: 1.5; font-size: 0.7rem; }
+  .key.correct { background: var(--correct); color: #fff; }
+  .key.present { background: var(--present); color: #fff; }
+  .key.absent  { background: var(--absent);  color: #fff; }
+
+  /* ===========================================================
+     TOAST
+     =========================================================== */
+  #toast-wrap {
+    position: fixed;
+    top: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: center;
+    z-index: 50;
+    pointer-events: none;
+  }
+  .toast {
+    background: #e2e8f0;
+    color: #0f172a;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+    animation: toastIn 0.18s ease;
+  }
+  @keyframes toastIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .toast.fade { opacity: 0; transition: opacity 0.4s ease; }
+
+  /* ===========================================================
+     MODALS
+     =========================================================== */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 16px;
+  }
+  .overlay.show { display: flex; }
+  .modal {
+    background: var(--panel);
+    border-radius: 14px;
+    padding: 22px;
+    max-width: 420px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    animation: toastIn 0.2s ease;
+  }
+  .modal h2 { margin: 0 0 12px; font-size: 1.25rem; }
+  .modal p { color: var(--muted); line-height: 1.5; font-size: 0.92rem; }
+  .modal .close {
+    float: right;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 1.4rem;
+    cursor: pointer;
+    line-height: 1;
+  }
+
+  /* Example tiles inside help modal */
+  .example-row { display: flex; gap: 4px; margin: 8px 0; }
+  .example-row .tile {
+    --tile-size: 36px;
+    width: 36px; height: 36px;
+    font-size: 18px;
+    border-width: 2px;
+  }
+
+  /* Stats grid */
+  .stats-grid {
+    display: flex;
+    justify-content: space-around;
+    text-align: center;
+    margin: 16px 0;
+  }
+  .stat-num { font-size: 1.8rem; font-weight: 700; }
+  .stat-label { font-size: 0.72rem; color: var(--muted); max-width: 70px; margin: 0 auto; }
+
+  /* Guess distribution bars */
+  .dist-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: 0.85rem; }
+  .dist-row .label { width: 14px; text-align: center; }
+  .dist-bar {
+    background: var(--absent);
+    color: #fff;
+    text-align: right;
+    padding: 2px 8px;
+    border-radius: 4px;
+    min-width: 24px;
+    font-weight: 700;
+  }
+  .dist-bar.current { background: var(--correct); }
+
+  .btn {
+    display: inline-block;
+    background: var(--accent);
+    color: #06281d;
+    border: none;
+    padding: 12px 18px;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    cursor: pointer;
+    width: 100%;
+    margin-top: 8px;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn.secondary { background: var(--key); color: var(--text); }
+
+  /* Make tiles smaller on narrow screens. */
+  @media (max-width: 380px) {
+    :root { --tile-size: 50px; }
+    .key { height: 46px; }
+  }
+  @media (max-width: 330px) {
+    :root { --tile-size: 44px; }
+  }
+</style>
+</head>
+<body>
+
+  <header>
+    <h1>🟩 Word&nbsp;Guess</h1>
+    <div class="header-btns">
+      <button class="icon-btn" id="help-btn" title="How to play" aria-label="Help">?</button>
+      <button class="icon-btn" id="stats-btn" title="Statistics" aria-label="Statistics">📊</button>
+    </div>
+  </header>
+
+  <div class="mode-bar" role="tablist">
+    <button id="mode-daily" class="active">Daily</button>
+    <button id="mode-free">Free play</button>
+  </div>
+
+  <main>
+    <div id="board" aria-label="Game board"></div>
+  </main>
+
+  <div id="keyboard"></div>
+
+  <!-- Toast container -->
+  <div id="toast-wrap" aria-live="polite"></div>
+
+  <!-- HELP MODAL -->
+  <div class="overlay" id="help-overlay">
+    <div class="modal">
+      <button class="close" data-close>&times;</button>
+      <h2>How to play</h2>
+      <p>Guess the <strong>WORD</strong> in 6 tries. Each guess must be a valid 5-letter word.
+         After each guess the tile colors show how close you were.</p>
+
+      <div class="example-row">
+        <div class="tile correct">W</div>
+        <div class="tile">O</div>
+        <div class="tile">R</div>
+        <div class="tile">D</div>
+        <div class="tile">Y</div>
+      </div>
+      <p><strong>W</strong> is in the word and in the correct spot.</p>
+
+      <div class="example-row">
+        <div class="tile">L</div>
+        <div class="tile present">I</div>
+        <div class="tile">G</div>
+        <div class="tile">H</div>
+        <div class="tile">T</div>
+      </div>
+      <p><strong>I</strong> is in the word but in the wrong spot.</p>
+
+      <div class="example-row">
+        <div class="tile">R</div>
+        <div class="tile">O</div>
+        <div class="tile">G</div>
+        <div class="tile absent">U</div>
+        <div class="tile">E</div>
+      </div>
+      <p><strong>U</strong> is not in the word in any spot.</p>
+
+      <p><strong>Daily</strong> mode gives everyone the same word each day (computed from your
+         local date, no internet needed). <strong>Free play</strong> picks a random word so you
+         can play as many times as you like.</p>
+    </div>
+  </div>
+
+  <!-- STATS MODAL -->
+  <div class="overlay" id="stats-overlay">
+    <div class="modal">
+      <button class="close" data-close>&times;</button>
+      <h2>Statistics</h2>
+      <div class="stats-grid">
+        <div><div class="stat-num" id="st-played">0</div><div class="stat-label">Played</div></div>
+        <div><div class="stat-num" id="st-win">0</div><div class="stat-label">Win %</div></div>
+        <div><div class="stat-num" id="st-cur">0</div><div class="stat-label">Current Streak</div></div>
+        <div><div class="stat-num" id="st-max">0</div><div class="stat-label">Max Streak</div></div>
+      </div>
+      <h2 style="font-size:1rem">Guess Distribution</h2>
+      <div id="dist"></div>
+      <div id="endgame-msg" style="text-align:center;margin-top:14px;color:var(--muted);"></div>
+      <button class="btn" id="playagain-btn" style="display:none;">Play again</button>
+    </div>
+  </div>
+
+<script>
+/* ===============================================================
+   WORD GUESS — single-file Wordle-style game
+   Everything runs locally. No network, no analytics, no storage
+   beyond localStorage (stats + saved daily progress).
+   =============================================================== */
+
+/* ---------------------------------------------------------------
+   WORD LISTS (embedded — no fetching)
+   ANSWERS  : curated common 5-letter words; the game picks from here.
+   ALLOWED  : extra valid words accepted as guesses but never chosen
+              as the answer. The full guess dictionary is ANSWERS
+              plus ALLOWED.
+   --------------------------------------------------------------- */
+const ANSWERS = (
+  "about above abuse actor acute admit adopt adult after again agent agree ahead alarm album " +
+  "alert alike alive allow alone along alter among angel anger angle angry apart apple apply " +
+  "arena argue arise array aside asset audio audit avoid award aware badly baker bases basic " +
+  "basis beach began begin begun being below bench billy birth black blame blank blind block " +
+  "blood board boost booth bound brain brand brave bread break breed brief bring broad broke " +
+  "brown build built buyer cabin cable carry catch cause chain chair chaos charm chart chase " +
+  "cheap check chess chest chief child china chose civic civil claim class clean clear click " +
+  "climb clock close cloth cloud coach coast could count court cover crack craft crash crazy " +
+  "cream crime cross crowd crown crude curve cycle daily dance dated dealt death debut delay " +
+  "depth doing doubt dozen draft drama drank drawn dream dress drill drink drive drove dying " +
+  "eager early earth eight elite empty enemy enjoy enter entry equal error event every exact " +
+  "exist extra faith false fault favor fence ferry field fifth fifty fight final first fixed " +
+  "flame flash fleet flesh float flood floor flour fluid focus force forge forth forty forum " +
+  "found frame frank fraud fresh front frost fruit fully funny ghost giant given glass globe " +
+  "glory goose grace grade grain grand grant grape grass grave great green greet grief gross " +
+  "group grown guard guess guest guide happy harsh haste heart heavy hello hence honor horse " +
+  "hotel house human humor hurry ideal image imply index inner input issue ivory japan jeans " +
+  "jewel joint judge juice jumbo knife knock known label labor large laser later laugh layer " +
+  "learn lease least leave legal lemon level light limit links liver lobby local logic loose " +
+  "lorry loser lover lower loyal lucky lunch lying magic major maker march match maybe mayor " +
+  "meant medal media metal meter midst might minor minus mixed model money month moral motor " +
+  "mount mouse mouth moved movie music naked nasty naval needs nerve never newly night noble " +
+  "noise north noted novel nurse occur ocean offer often olive onion order other ought ounce " +
+  "outer owner paint panel paper party pause peace pearl penny phase phone photo piano piece " +
+  "pilot pinch pitch place plain plane plant plate plaza plead plot point polar pound power " +
+  "press price pride prime print prior prize proof proud prove pulse punch pupil queen query " +
+  "quest quick quiet quite quota radio raise rally range rapid ratio reach react ready realm " +
+  "rebel refer relax reply rifle right rigid rival river roast robot rocky roman rough round " +
+  "route royal rugby ruler rural saint salad sales sauce scale scare scene scope score scout " +
+  "screw seize sense serve seven shade shaft shall shame shape share shark sharp sheep sheet " +
+  "shelf shell shift shine shirt shock shoot shore short shown sight silly since sixth sixty " +
+  "skill skull slate sleep slice slide slope small smart smell smile smoke snake sneak solar " +
+  "solid solve sorry sound south space spare spark speak speed spell spend spent spice spike " +
+  "spine split spoke sport spray squad stack staff stage stair stake stamp stand stark start " +
+  "state steam steel steep steer stern stick stiff still stock stone stood stool store storm " +
+  "story stove strap straw strip stuck study stuff style sugar suite super sweat sweet swift " +
+  "swing sword table taken talor taste teach teeth tempo tenor tense terms thank theft their " +
+  "theme there these thick thief thing think third those three threw throw thumb tiger tight " +
+  "timer tired title toast today token tooth topic torch total touch tough tower trace track " +
+  "trade trail train trait trash treat trend trial tribe trick tried tries truck truly trump " +
+  "trust truth twice twist tying ultra uncle under union unite unity until upper upset urban " +
+  "usage usual valid value vapor vault venue verse video viola vital vocal vodka voice voter " +
+  "wagon waste watch water weigh weird whale wheat wheel where which while white whole whose " +
+  "widen wider widow width woman world worry worse worst worth would wound wrist write wrong " +
+  "wrote yacht yield young youth zebra"
+).split(/\s+/).filter(Boolean);
+
+// Fix a stray typo defensively (keep list clean) and remove any non-5-letter words.
+const CLEAN_ANSWERS = [...new Set(ANSWERS.filter(w => w.length === 5))];
+
+/* Additional valid guesses (not used as answers). A small but useful set
+   of extra real words so common guesses aren't rejected. */
+const ALLOWED_EXTRA = (
+  "aback abate abbey abide abled abode abort acids acing acorn acres acted actin adage adapt " +
+  "addle adept adieu adobe adore aegis aerie affix afire afoot afoul aging aglow aided aides " +
+  "aimed aired aisle alarm alder algae alibi alien aloft aloha aloof altar amass amaze amber " +
+  "amble amend amino amiss amply amuse angst anion anise ankle anode antic antsy aorta apnea " +
+  "aptly arbor ardor areas arena argon armed armor aroma arrow arson ashen aspen assay aster " +
+  "atlas atoll atone attic augur aunts aural autos avail avert avian awake aware awash awful " +
+  "awoke axial axiom axion azure bacon badge bagel baggy baked baker balls balmy banal bandy " +
+  "banjo barge baron basil baste batch bathe baton bawdy bayou beads beady beans beard beast " +
+  "beech beefy befit began begat beget begun beige belch belie belle belly bench beret berry " +
+  "berth beset betel bezel bible bicep biddy bidet bigot bilge billy binge bingo biome birch " +
+  "bison bitty black blade blame bland blast blaze bleak bleat bleed bleep blend bless blimp " +
+  "bliss blitz bloat blob bloke blond blown bluer bluff blunt blurb blurt blush board boast " +
+  "bobby boded bodes bogey boggy bogus boils boldly bolts bonds boned bones bongo bonus booby " +
+  "boost booth boots booty booze borax bored boric bough bound bowel boxer brace braid brain " +
+  "brake brand brash brave bravo brawl brawn bread break bream breed briar bribe brick bride " +
+  "brine bring brink briny brisk broad broil broke brood brook broom broth brown brunt brush " +
+  "brute buddy budge buggy bugle build built bulge bulky bully bunch bunny burly burnt burst " +
+  "bushy butch butte buxom buyer cabal cabby cabin cable cacao cache caddy cadet cagey caged " +
+  "cairn caked cakes camel cameo canal candy caned canny canoe caper capon caput carat cards " +
+  "cargo carol carry carts carve cased cases caste catch cater catty caulk cause caved caves " +
+  "cease cedar ceded cello cells cents chafe chaff chain chair chalk champ chant chaos chaps " +
+  "charm chart chase chasm cheap cheat check cheek cheer chess chest chevy chewy chick chide " +
+  "chief child chili chill chime chimp china chink chips chirp chock choir choke chomp chops " +
+  "chord chore chose chuck chump chunk churn chute cider cigar cinch circa cited cites civic " +
+  "civil clack claim clamp clang clank clash clasp class clean clear cleat cleft clerk click " +
+  "cliff climb cling clink cloak clock clomp clone close cloth cloud clout clove clown cluck " +
+  "clued clump clung coach coals coast coats cobra cocoa cocky cohort colon color colts comer " +
+  "comet comfy comic comma conch condo cones conic corer cords corgi corns corny cosec couch " +
+  "cough could count coupe court coven cover covet covey cowed cower coyly crabs crack craft " +
+  "cramp crane crank crash crass crate crave crawl craze crazy creak cream credo creed creek " +
+  "creep creme crepe crept cress crest crick cried crier crime crimp crisp croak crock crone " +
+  "crony crook croon crops cross croup crowd crown crude cruel crumb crush crust crypt cubby " +
+  "cubed cubes cubic cuddly cumin curio curls curly curry curse curve curvy cushy cycle cynic " +
+  "daddy daily dairy daisy dally dance dandy darts dated dates datum daunt davit dazed dealt " +
+  "death debar debit debug debut decal decay decor decoy decry deeds deems defer defog deign " +
+  "deity delta delve demon demur denim dense depot depth derby deter detox devil dewey diary " +
+  "diced dicey dicky digit diked dimer dimes dimly diner dingo dingy dined dinky diode dirge " +
+  "dirty disco ditch ditty divan divas dived diver divot dizzy docks dodge dodgy doily doing " +
+  "doled dolly donor donut dooms doors dopey dosed doses dotty doubt dough douse dowdy dowel " +
+  "downy dowry dozed dozen draft drain drake drama drank drape drawl drawn dread dream dress " +
+  "dried drier drift drill drily drink drips drive droll drone drool droop drops dross drove " +
+  "drown druid drunk dryer dryly ducat ducks duchy ducks dudes duels duets dukes dully dummy " +
+  "dumpy dunce dunes dungs dusky dusty dutch dwarf dwell dwelt dying eager eagle early earns " +
+  "earth eased easel eaten eater ebony edict edify educe eerie egret eider eight eject eking " +
+  "elate elbow elder elect elegy elfin elide elite elope elude elute email embed ember emcee " +
+  "emend emery emote empty enact ended endow endue enema enemy enjoy ennui ensue enter entry " +
+  "envoy epoch epoxy equal equip erase erect erode erred error erupt essay ester ether ethic " +
+  "ethos evade evens event evert every evict evoke exact exalt excel exert exile exist expel " +
+  "extol extra exude exult eying fable faced facet facts faded fades faery fagot fails faint " +
+  "fairy faith faked fakes fakir falls false famed fancy fangs fanny farce fared fares farms " +
+  "fatal fated fates fatty fault fauna favor fawns faxed fazed feast feats fecal feign feint " +
+  "fella felon femur fence feral ferns ferry fetal fetch feted fetid fetus fever fewer fiats " +
+  "fiber fibre ficus field fiend fiery fifth fifty fight filch filed filer files filet fills " +
+  "filly films filmy filth final finch finds fined finer fines finis fiord fired fires firms " +
+  "first fishy fists fitly fiver fives fixed fixer fizzy fjord flack flail flair flake flaky " +
+  "flame flank flaps flare flash flask flats flaws fleck fleas fleck fleet flesh flick flier " +
+  "flies fling flint flips flirt float flock floes flog flood floor flora floss flour flout " +
+  "flown flows flubs flue fluff fluid fluke flume flung flunk flush flute foamy focal focus " +
+  "foggy foist folds folio folks folly fonts foods fools foray force fords forge forgo forks " +
+  "forly forms forte forth forts forty forum found fount fours fowls foxes foyer frack frail " +
+  "frame franc frank fraud frays freak freed freer fresh fried fries frill frisk frock frond " +
+  "front frost froth frown froze fruit fryer fudge fuels fugue fully fumed fumes funds fungi " +
+  "funky funny furor furry fused fuses fussy fuzzy gabby gaily gains gaits gales gamer games " +
+  "gamma gamut gangs gaped gapes garbs gases gassy gated gates gaudy gauge gaunt gauze gauzy " +
+  "gavel gawky gayer gazed gazer gears gecko geeks geese genes genie genre gents germs getup " +
+  "ghost ghoul giant giddy gifts gigas gilds gills gimpy girls girth given giver gizmo glade " +
+  "gland glare glass glaze gleam glean glide glint gloat globe gloom glory gloss glove glow " +
+  "glued glues gluey gluts gnarl gnash gnome goads goals goats godly going golds golly gonad " +
+  "goner goods goody gooey goofy goose gored gores gorge gory gosh gouge gourd gout gowns " +
+  "grabs grace grade graft grail grain grams grand grant grape graph grasp grass grate grave " +
+  "gravy graze great grebe greed green greet grews greys grids grief grill grime grimy grind " +
+  "gripe grips grist grits groan groin groom grope gross group grout grove growl grown grows " +
+  "grubs gruel gruff grump grunt guano guard guava guess guest guide guild guile guilt guise " +
+  "gulch gulfs gully gulps gumbo gummy gunny guppy gurus gusto gusty gutsy gypsy gyros habit " +
+  "hacks haiku hairs hairy hakes hales halls halts halve hands handy hangs hanky happy hardy " +
+  "hared harem harms harps harpy harry harsh haste hasty hatch hated hater hates hauls haunt " +
+  "haven havoc hawks hazel hazes heads heady heals heaps heard hears heart heath heave heavy " +
+  "hedge heeds heels hefty heirs heist helix hello helms helps hence herbs herds heron hertz " +
+  "hewed hexed hicks hides highs hijack hiker hikes hills hilly hinds hinge hints hippo hippy " +
+  "hired hires hitch hived hives hoard hoary hobby hocks hoist holds holes holly homed homer " +
+  "homes homey honed honey honor hoods hooey hoofs hooks hoops hoots horde horns horny horse " +
+  "hosed hoses hosts hotel hotly hound hours house hovel hover howdy howls hubby huffy huger " +
+  "hulks hulls human humid humor humps humus hunch hunks hunts hurls hurry hurts husks husky " +
+  "hutch hydro hyena hymns hyped hyper icers icier icily icing icons ideal ideas idiom idiot " +
+  "idled idler idols igloo image imbed impel imply inane inbox incur index inept inert infer " +
+  "ingot inked inlay inlet inner input inset inter intro irate irked irons ironic islet issue " +
+  "itchy items ivied ivory jabot jacks jaded jails jambs jaunt jawed jazzy jeans jeeps jeers " +
+  "jelly jerks jerky jetty jewel jibed jibes jiffy jihad jilts jimmy jingo jinks joey joins " +
+  "joint joist joked joker jokes jolly jolts joule joust jowls judge juice juicy julep jumbo " +
+  "jumps jumpy junco junky junta juror kabob kale kapok kappa karat karma kayak kebab keels " +
+  "keeps kelp kempt kendo kenel kerns kefir keyed khaki kicks kicky kiddo kills kilns kilos " +
+  "kilts kinda kinds kings kinks kinky kiosk kited kites kitty kiwis klutz knack knave knead " +
+  "kneed kneel knees knelt knife knish knits knobs knock knoll knots known knows koala kooks " +
+  "kooky kraut kudos kudzu label labor laced laces lacks laden ladle lager lairs lakes lamas " +
+  "lambs lamed lamer lamps lance lands lanes lanky lapel lapse larch lards large largo larva " +
+  "laser lasso lasts latch later lated latex lathe laths laugh leach leads leafy leaks leaky " +
+  "leans leant leaps leapt learn lease leash least leave ledge leech leeks leers leery lefts " +
+  "lefty legal leggy legit lemon lemur lends leper levee level lever liars libel licks lidded " +
+  "liens liers light liked liken liker likes lilac limbo limbs limes limit limns limos limpid " +
+  "lined linen liner lines lingo links lions lisle lisps lists lithe lived liven liver lives " +
+  "livid llama loads loafs loamy loans loath lobby lobed lobes local locks locus lodge lofts " +
+  "lofty logic logos loins lolls loner longs looks looms loons loony loops loopy loose loots " +
+  "loped lopes lords lorry loser loses lossy lotto lotus loud lousy loved lover loves lowed " +
+  "lower lowly loyal luau lubed luces lucid lucky lumen lumps lumpy lunar lunch lunge lurch " +
+  "lured lures lurid lurks lusts lusty lutes lying lymph lynch lyres lyric macaw maced maces " +
+  "macho macro madam madly mafia magic magma maids mails maims mains maize major maker makes " +
+  "males malls malts mamba mambo mamma mango mangy mania manic manly manna manor manse maple " +
+  "march mares maria marks marry marsh maser masks mason masts match mated mates matey maths " +
+  "matte mauls mauve maven maxed maxim maybe mayor mazes meals mealy means meant meats meaty " +
+  "mecca medal media medic meeds melds melon melts memes memos mends menus meows mercy merge " +
+  "merit merry mesas meshy messy metal meted meter metro mewed mezzo micro middy midge midst " +
+  "miens miffs miked mikes milch milds miler miles milks milky mills mimed mimes mimic mince " +
+  "minds mined miner mines mini minim minks minor mints minus mired mires mirth miser missy " +
+  "mists misty miter mites mitts mixed mixer mixes moans moats mocha mocks modal model modem " +
+  "modes moist molar molds moldy moles molts money monks month mooch moods moody mooed moons " +
+  "moose moots moped mopes moral moras morel mores morns moron morph morro mosey mossy moths " +
+  "motif motor motto mound mcount mourn mouse mousy mouth moved mover moves movie mowed mower " +
+  "mucky mucus muddy muffs mufti muggy mulch mules muley mulls mummy mumps munch mural murks " +
+  "murky mused muser muses mushy music musks musky mussy musty muted muter mutes mutts myrrh " +
+  "myths nabob nacho nadir naiad nails naive naked named names nanny napes nappy narcs nasal " +
+  "nasty natal natty naval navel naves needy negus neighs neon nerds nerdy nerve nests never " +
+  "newel newer newly newts nexus nicer niche nicks niece nifty night nines ninja ninny ninth " +
+  "nippy nitro noble nobly nodal nodes noels noise noisy nomad nooks noons noose north nosed " +
+  "noses nosey notch noted notes nouns novae novas novel noway nudes nudge nuked nukes nulls " +
+  "numbs nurse nutsy nutty nyala nylon nymph oaken oared oases oasis oaten oaths obese obeys " +
+  "occur ocean ocher ocean octal octet odder oddly odors offal offer often ogled ogles ogres " +
+  "oiled oinks okapi okays olden older olive omega omits onion onset oozed oozes opals opens " +
+  "opera opine opium opted optic orals orate orbit orcas order organ oriel oring osier other " +
+  "otter ought ounce ousts outdo outed outer outgo ovals ovary ovate ovens overs overt ovine " +
+  "ovoid ovule owing owlet owned owner oxbow oxide ozone paced paces packs pacts paddy padre " +
+  "paean pagan paged pager pages pails pains paint pairs paled paler pales palls palms palmy " +
+  "palsy panda paned panel panes pangs panic pansy pants papal papas paper pappy parch pared " +
+  "pares parka parks parry parse parts party paste pasts pasty patch pated paten pater paths " +
+  "patio patly patsy patty pause paved paver paves pawed pawls pawns payed payee payer peace " +
+  "peach peaks peaky peals pearl peart peats pecan pecks pedal peeks peels peeps peers peeve " +
+  "pekoe pelts penal pence pengo penis penne penny peony peony peppy perch peril perks perky " +
+  "perms pesky pesos pesto petal peter petty pewee pewit phase phlox phone phony photo phyla " +
+  "piano picks picky piece piers piety piggy pigmy piing piked piker pikes pilaf pilau piled " +
+  "pile pills pilot pimps pinch pined pines pings pinko pinks pinky pinon pinto pints pinup " +
+  "pious piped piper pipes pique pitch piths pithy piton pivot pixel pixie pizza place plaid " +
+  "plain plait plane plank plans plant plate plays plaza plead pleas pleat plebe plied plier " +
+  "plies plods plonk plops plots plows ploys pluck plugs plumb plume plump plums plumy plunk " +
+  "plush poach pocks podgy poems poesy poets point poise poked poker pokes pokey polar poled " +
+  "poles polio polka polls polos pomps ponce ponds pones pooch poohs pools poops popes poppy " +
+  "porch pored pores porno ports posed poser poses posit posse posts potty pouch poufs pound " +
+  "pours pouts power poxes prams prank prate prawn prays preen preps press preys price prick " +
+  "pride pried prier pries prime primp print prion prior prism privy prize probe prods proem " +
+  "profs promo proms prone prong proof props prose prosy proud prove prowl proxy prude prune " +
+  "psalm pshaw psych pubic pucks pudgy puffs puffy puked pukes pulls pulps pulpy pulse pumas " +
+  "pumps punch punks punky punny pupae pupal pupil puppy puree purer purge purls purrs purse " +
+  "pushy putts putty pygmy pylon pyres pyxie quack quads quaff quail quake quaky qualm quark " +
+  "quart quash quasi quays queasy queen queer quell query quest queue quick quids quiet quill " +
+  "quilt quips quire quirk quirt quite quits quoit quota quote quoth rabbi rabid raced racer " +
+  "races racks radar radii radio rafts raged rages raids rails rains rainy raise raked rakes " +
+  "rally ramps ranch randy range rangy ranks ranth rants raped rapes rapid rared rares rased " +
+  "rasps raspy rated rates ratio ratty raved ravel raven raves rawer rayon razed razes razor " +
+  "reach react reads ready realm reams reaps rearm rears rebar rebel rebid rebus rebut recap " +
+  "recta recur redid redo reedy reefs reeks reels reeve refer refit regal rehab reign reins " +
+  "relax relay relic remit renal rends renew rents repay repel reply rerun reset resin rests " +
+  "retch retro retry reuse revel revue rheas rhino rhyme rials rible riced rices ricks rider " +
+  "rides ridge rifer riffs rifle rifts right rigid rigor riled riles rills rimed rimes rinds " +
+  "rings rinks rinse riots ripen riper risen riser rises risks risky rites ritzy rival rived " +
+  "riven river rivet roach roads roams roans roars roast robed robes robin robot rocks rocky " +
+  "rodeo rogue roils roily roles rolls roman romps roods roofs rooks rooky rooms roomy roost " +
+  "roots roped ropes ropey roses rosin rotor rouge rough round rouse roust route routs roved " +
+  "rover roves rowan rowdy rowed rowel rower royal rsync ruana rubes rubup ruddy ruder ruffs " +
+  "rugby ruing ruins ruled ruler rules rumba rumen rummy rumor rumps runes rungs runny runts " +
+  "rural ruses rusks rusts rusty saber sable sacks sadly safer sagas sager sages sahib sails " +
+  "saint saith salad salat sally salon salsa salts salty salve salvo samba sands sandy saner " +
+  "sappy saran saree sarge sasin sated satin satyr sauce saucy saunas saute saved saver saves " +
+  "savor savoy savvy sawed scabs scads scald scale scalp scaly scamp scams scans scant scare " +
+  "scarf scary scats scene scent schmo schwa scion scoff scold scone scoop scoot scope score " +
+  "scorn scour scout scowl scows scram scrap scree screw scrim scrip scrod scrub scuba scuds " +
+  "scuff scull scums sealed seals seamy seats sebum sects sedan seder seeds seedy seeks seems " +
+  "seeps seers segue seine seize sells semis sends sense sepal seral serfs serge serif serum " +
+  "serve setts setup seven sever sewed sewer shack shade shads shady shaft shags shahs shake " +
+  "shaky shale shall shalt shame shams shank shape shard share shark sharp shave shawl sheaf " +
+  "shear sheds sheen sheep sheer sheet sheik shelf shell shied shier shies shift shill shims " +
+  "shine shiny ships shire shirk shirt shoal shock shoed shoes shone shook shoot shops shore " +
+  "shorn short shots shout shove shown shows showy shred shrew shrub shrug shuck shuns shunt " +
+  "shush shuts shyer shyly sibyl sicko sided sides sidle siege sieve sifts sighs sight sigma " +
+  "signs silks silky sills silly silos silts since sines sinew singe sings sinks sinus sips " +
+  "sired siren sires sisal sissy sitar sited sites sixes sixth sixty sized sizer sizes skate " +
+  "skees skeet skein skews skids skied skier skies skiff skill skimp skims skink skins skips " +
+  "skirt skits skoal skulk skull skunk slabs slack slags slain slake slams slang slant slaps " +
+  "slash slate slats slave slaws slays sleds sleek sleep sleet slept slews slice slick slide " +
+  "slier slily slime slims slimy sling slink slips slits slobs slogs sloop slope slops slosh " +
+  "sloth slots slows slubs slugs slump slums slung slunk slurp slurs slush sluts slyer slyly " +
+  "smack small smart smash smear smell smelt smile smirk smite smith smock smogs smoke smoky " +
+  "smote snack snafu snags snail snake snaky snaps snare snarl sneak sneer snide sniff snipe " +
+  "snips snits snobs snoop snoot snore snort snots snout snows snowy snubs snuck snuff snugs " +
+  "soaks soaps soapy soars sober socks sodas sofas softy soggy soils solar soled soles solid " +
+  "solo solve sonar songs sonic sooth soots sooty soppy sores sorry sorta sorts sough souls " +
+  "sound soups soupy sours souse south sowed sower space spade spake spank spans spare spark " +
+  "spars spasm spate spats spawn spays speak spear speck specs speed spell spelt spend spent " +
+  "sperm spews spica spice spicy spied spiel spies spike spiky spill spilt spine spins spiny " +
+  "spire spiry spite spits splat splay split spode spoil spoke spoof spook spool spoon spoor " +
+  "spore sport spots spout sprat spray spree sprig spuds spume spunk spurn spurs spurt squab " +
+  "squad squat squaw squeak squid stabs stack staff stage staid stain stair stake stale stalk " +
+  "stall stamp stand stank staph stare stark stars start stash state stats stave stays stead " +
+  "steak steal steam steed steel steep steer stein stems steps stern stets stews stick stied " +
+  "sties stiff stile still stilt sting stink stint stirs stoat stock stoic stoke stole stomp " +
+  "stone stony stood stool stoop stops store stork storm story stoup stout stove stows strap " +
+  "straw stray strep strew strip strop strum strut stubs stuck studs study stuff stump stung " +
+  "stunk stuns stunt styes style suave subly suede sucks sudsy suede sugar suing suite suits " +
+  "sulks sulky sully sumac sumps sunny sunup super surer surfs surge surly sushi swabs swags " +
+  "swain swami swamp swans swaps sward swarm swash swath swats sways swear sweat swede sweep " +
+  "sweet swell swept swift swigs swill swims swine swing swipe swirl swish swiss swoon swoop " +
+  "swops sword swore sworn swung sycee synod syrup tabby table taboo tabor tacit tacks tacky " +
+  "taco tactic taffy tails taint taken taker takes tales talks tally talon tamed tamer tames " +
+  "tamps tango tangs tangy tanks tansy taped taper tapes tapir tardy tared tares tarns taros " +
+  "tarot tarps tarry tarts tasks taste tasty tatty taunt taupe tawny taxed taxer taxes teach " +
+  "teaks teals teams tears teary tease teats techs teddy teems teens teeny teeth tells telly " +
+  "tempo temps tempt tends tenet tenon tenor tense tenth tents tepee tepid terms terse tessera " +
+  "tests testy texts thank thars thaws thefts their theme there therm these theta thews thick " +
+  "thief thigh thill thine thing think thins third thong thorn those thous three threw throb " +
+  "throe throw thrum thuds thugs thumb thump thyme tiara tibia ticks tidal tided tides tiers " +
+  "tiffs tiger tight tikes tikis tilde tiled tiler tiles tills tilts timed timer times timid " +
+  "tined tines tinge tings tinny tints tipsy tired tires titan tithe title titre tizzy toads " +
+  "toady toast today toddy toffy togas toile toils toits token tokes toled toledo tolls tombs " +
+  "tomes tonal toned toner tones tonga tongs tonic tools tooth toots topaz toped toper topes " +
+  "topic toque torah torch tored torem torsi torso torte torts torus total toted totem totes " +
+  "touch tough tours touts towed towel tower towns toxic toxin toyed trace track tract trade " +
+  "trail train trait tramp traps trash trawl trays tread treat treed trees treks trend tress " +
+  "triad trial tribe trice trick tried trier tries trill trims trios tripe trips trite troll " +
+  "tromp troop trope troth trout trove truce truck trued truer trues truly trump trunk truss " +
+  "trust truth tryst tubas tubby tubed tuber tubes tucks tufts tulip tulle tumid tummy tumor " +
+  "tunas tuned tuner tunes tunic turbo turfs turns tushy tusks tutor tutus tuxes twang tweak " +
+  "tweed tween tweet twerp twice twigs twill twine twins twiny twirl twist twits typed types " +
+  "typos tyros udder ulcer ulnae ulnar ultra umber umbra umiak unbar uncle uncut under undid " +
+  "undo unfed unfit unify union unite units unity unjam unlit unman unpin unsay unset untie " +
+  "until unwed unzip upend upped upper upset urban urea urged urges urine usage users usher " +
+  "using usual usurp usury uteri utile utter uvula vague vales valet valid valor value valve " +
+  "vamps vaned vanes vapid vapor vases vault vaunt veals veers vegan veils veins velds venal " +
+  "vends venom vents venue verbs verge verse versa verso verve vests vetch vexed vexes vials " +
+  "vibes vicar viced vices video vigil vigor viler villa vinca vined vines vinyl viola viper " +
+  "viral vireo virus visas vised vises visit visor vista vital vivid vixen vocab vocal vodka " +
+  "vogue voice voids voile voled voles volts vomit voted voter votes vouch vowed vowel vroom " +
+  "vying wacko wacky waded wader wades wafer wage waged wager wages wagon waifs wails waist " +
+  "waits waive waked waken wakes wales walks walls waltz wands waned wanes wanly wants wards " +
+  "wares warms warns warps warts warty washy wasps waste watch water watts waved waver waves " +
+  "wavey waxed waxen waxes weals weans wears weary weave webby wedge weeds weedy weeks weeny " +
+  "weeps weepy wefts weigh weird welch welds wells welsh welts wench wends wests whack whale " +
+  "whams wharf whats wheal wheat wheel whelk whelm whelp whens where whets which whiff while " +
+  "whims whine whiny whips whirl whirr whirs whisk whist white whits whizz whole whoop whops " +
+  "whore whorl whose whoso wicks widen wider wides widow width wield wifey wight wikis wilds " +
+  "wiled wiles wills wilts wimps wimpy wince winch winds windy wined wines wings winks winos " +
+  "wiped wiper wipes wired wires wised wiser wises wisps wispy witch witty wives wizes woads " +
+  "woke woken wolfs woman wombs women wonts woods woody wooed wooer woofs wools wooly woozy " +
+  "words wordy works world worms wormy worry worse worst worth would wound woven wowed wracks " +
+  "wraps wrapt wrath wreak wreck wrens wrest wried wries wring wrist write writs wrong wrote " +
+  "wroth wrung wryly xenon xylem yacht yacks yams yanks yards yarns yawed yawls yawns yawps " +
+  "yearn years yeast yells yelps yens yetis yield yikes yipes yodel yogas yogic yogis yoked " +
+  "yokel yokes yolks yore young yours youth yowls yoyo yucca yucky yukky yules zaire zanier " +
+  "zappy zayin zazen zeals zebra zebus zeros zest zesty zetas zilch zincs zings zingy zippy " +
+  "zlote zonal zoned zoner zones zonks zooid zooms zowie"
+).split(/\s+/).filter(Boolean);
+
+// Build the set of all valid guesses: answers + extras, normalized to 5 letters.
+const ALLOWED = new Set(
+  [...CLEAN_ANSWERS, ...ALLOWED_EXTRA].filter(w => w.length === 5)
+);
+
+/* ---------------------------------------------------------------
+   GAME STATE
+   --------------------------------------------------------------- */
+const ROWS = 6;
+const COLS = 5;
+
+let answer = "";        // the secret word
+let guesses = [];       // array of submitted guess strings
+let current = "";       // the row currently being typed
+let gameOver = false;
+let mode = "daily";     // "daily" | "free"
+let keyState = {};       // letter -> best state ("absent"|"present"|"correct")
+
+const boardEl = document.getElementById("board");
+const keyboardEl = document.getElementById("keyboard");
+
+/* ---------------------------------------------------------------
+   DAILY WORD
+   Deterministic: index = days since an epoch, modulo list length.
+   Uses local date components so it changes at local midnight and
+   requires no network.
+   --------------------------------------------------------------- */
+function dailyIndex(date = new Date()) {
+  // Use local Y/M/D so the boundary is local midnight.
+  const epoch = Date.UTC(2024, 0, 1);                 // arbitrary fixed start
+  const today = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+  const days = Math.floor((today - epoch) / 86400000);
+  return ((days % CLEAN_ANSWERS.length) + CLEAN_ANSWERS.length) % CLEAN_ANSWERS.length;
+}
+
+function dailyKey(date = new Date()) {
+  // Stable string key for saving per-day progress.
+  return date.getFullYear() + "-" + (date.getMonth() + 1) + "-" + date.getDate();
+}
+
+function pickAnswer() {
+  if (mode === "daily") {
+    return CLEAN_ANSWERS[dailyIndex()];
+  }
+  return CLEAN_ANSWERS[Math.floor(Math.random() * CLEAN_ANSWERS.length)];
+}
+
+/* ---------------------------------------------------------------
+   BOARD RENDERING
+   --------------------------------------------------------------- */
+function buildBoard() {
+  boardEl.innerHTML = "";
+  for (let r = 0; r < ROWS; r++) {
+    const row = document.createElement("div");
+    row.className = "row";
+    row.dataset.row = r;
+    for (let c = 0; c < COLS; c++) {
+      const tile = document.createElement("div");
+      tile.className = "tile";
+      tile.dataset.row = r;
+      tile.dataset.col = c;
+      row.appendChild(tile);
+    }
+    boardEl.appendChild(row);
+  }
+}
+
+function tileAt(r, c) {
+  return boardEl.querySelector(`.tile[data-row="${r}"][data-col="${c}"]`);
+}
+
+// Re-draw letters in the active (in-progress) row.
+function renderCurrentRow() {
+  const r = guesses.length;
+  for (let c = 0; c < COLS; c++) {
+    const tile = tileAt(r, c);
+    if (!tile) continue;
+    const ch = current[c] || "";
+    tile.textContent = ch;
+    tile.classList.toggle("filled", !!ch);
+  }
+}
+
+/* ---------------------------------------------------------------
+   SCORING — the classic two-pass algorithm
+   This is where the common duplicate-letter bug lives.
+   Pass 1: mark every position that is an EXACT match (green) and
+           "consume" that letter from a tally of the answer's letters.
+   Pass 2: for the remaining (non-green) positions, mark yellow ONLY
+           if the answer still has an unconsumed copy of that letter;
+           otherwise mark gray.
+   Doing greens first prevents over-marking yellows for duplicates,
+   e.g. guess "EERIE" against answer "THERE" should not light up
+   more E's than actually remain.
+   --------------------------------------------------------------- */
+function scoreGuess(guess, target) {
+  const result = new Array(COLS).fill("absent");
+
+  // Tally of letters still available in the target.
+  const counts = {};
+  for (const ch of target) counts[ch] = (counts[ch] || 0) + 1;
+
+  // Pass 1: greens.
+  for (let i = 0; i < COLS; i++) {
+    if (guess[i] === target[i]) {
+      result[i] = "correct";
+      counts[guess[i]]--;          // consume this letter
+    }
+  }
+
+  // Pass 2: yellows / grays for the rest.
+  for (let i = 0; i < COLS; i++) {
+    if (result[i] === "correct") continue;
+    const ch = guess[i];
+    if (counts[ch] > 0) {
+      result[i] = "present";
+      counts[ch]--;                // consume so duplicates aren't over-marked
+    }
+    // else stays "absent"
+  }
+
+  return result;
+}
+
+/* ---------------------------------------------------------------
+   KEYBOARD
+   --------------------------------------------------------------- */
+const KB_LAYOUT = [
+  "qwertyuiop".split(""),
+  "asdfghjkl".split(""),
+  ["enter", ..."zxcvbnm".split(""), "back"]
+];
+
+function buildKeyboard() {
+  keyboardEl.innerHTML = "";
+  for (const rowKeys of KB_LAYOUT) {
+    const rowEl = document.createElement("div");
+    rowEl.className = "kb-row";
+    for (const k of rowKeys) {
+      const btn = document.createElement("button");
+      btn.className = "key";
+      btn.dataset.key = k;
+      if (k === "enter") { btn.textContent = "Enter"; btn.classList.add("wide"); }
+      else if (k === "back") { btn.textContent = "⌫"; btn.classList.add("wide"); }
+      else btn.textContent = k;
+      btn.addEventListener("click", () => handleKey(k));
+      rowEl.appendChild(btn);
+    }
+    keyboardEl.appendChild(rowEl);
+  }
+}
+
+// Priority so a green key never reverts to yellow/gray.
+const RANK = { absent: 0, present: 1, correct: 2 };
+
+function updateKeyboardColors(guess, result) {
+  for (let i = 0; i < COLS; i++) {
+    const ch = guess[i];
+    const newState = result[i];
+    if (!keyState[ch] || RANK[newState] > RANK[keyState[ch]]) {
+      keyState[ch] = newState;
+    }
+  }
+  // Apply classes.
+  for (const ch in keyState) {
+    const btn = keyboardEl.querySelector(`.key[data-key="${ch}"]`);
+    if (btn) {
+      btn.classList.remove("correct", "present", "absent");
+      btn.classList.add(keyState[ch]);
+    }
+  }
+}
+
+/* ---------------------------------------------------------------
+   INPUT HANDLING
+   --------------------------------------------------------------- */
+function handleKey(k) {
+  if (gameOver) return;
+
+  if (k === "enter") { submitGuess(); return; }
+  if (k === "back")  { current = current.slice(0, -1); renderCurrentRow(); return; }
+
+  // Only single letters a-z.
+  if (/^[a-z]$/.test(k) && current.length < COLS) {
+    current += k;
+    renderCurrentRow();
+    // pop the tile that was just filled
+    const tile = tileAt(guesses.length, current.length - 1);
+    if (tile) { tile.classList.remove("pop"); void tile.offsetWidth; tile.classList.add("pop"); }
+  }
+}
+
+// Physical keyboard support.
+document.addEventListener("keydown", (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return; // don't hijack shortcuts
+  const key = e.key;
+  if (key === "Enter") handleKey("enter");
+  else if (key === "Backspace") handleKey("back");
+  else if (/^[a-zA-Z]$/.test(key)) handleKey(key.toLowerCase());
+});
+
+function submitGuess() {
+  const r = guesses.length;
+
+  if (current.length < COLS) {
+    shakeRow(r);
+    toast("Not enough letters");
+    return;
+  }
+  if (!ALLOWED.has(current)) {
+    shakeRow(r);
+    toast("Not in word list");
+    return;
+  }
+
+  const guess = current;
+  const result = scoreGuess(guess, answer);
+
+  guesses.push(guess);
+  current = "";
+
+  revealRow(r, guess, result);
+  updateKeyboardColors(guess, result);
+
+  const won = result.every(x => x === "correct");
+  const lost = !won && guesses.length === ROWS;
+
+  if (won || lost) {
+    gameOver = true;
+    // Animations run ~ COLS * 300ms; wait for them before recording/showing.
+    setTimeout(() => {
+      recordResult(won, guesses.length);
+      if (won) {
+        boardEl.querySelector(`.row[data-row="${r}"]`).classList.add("win");
+        toast(["Genius", "Magnificent", "Impressive", "Splendid", "Great", "Phew"][guesses.length - 1] || "Nice!");
+      } else {
+        toast("The word was " + answer.toUpperCase(), 4000);
+      }
+      setTimeout(() => openStats(won, guesses.length), 1600);
+    }, COLS * 300 + 200);
+  }
+
+  saveProgress();
+}
+
+function shakeRow(r) {
+  const row = boardEl.querySelector(`.row[data-row="${r}"]`);
+  if (!row) return;
+  row.classList.remove("shake");
+  void row.offsetWidth;     // restart animation
+  row.classList.add("shake");
+}
+
+// Flip each tile in sequence, swapping its color at the midpoint of the flip.
+function revealRow(r, guess, result) {
+  for (let c = 0; c < COLS; c++) {
+    const tile = tileAt(r, c);
+    tile.textContent = guess[c];
+    setTimeout(() => {
+      tile.classList.add("flip");
+      // Halfway through the flip, apply the color.
+      setTimeout(() => {
+        tile.classList.remove("filled");
+        tile.classList.add(result[c]);
+      }, 250);
+    }, c * 300);
+  }
+}
+
+/* ---------------------------------------------------------------
+   TOAST
+   --------------------------------------------------------------- */
+function toast(msg, ms = 1500) {
+  const wrap = document.getElementById("toast-wrap");
+  const el = document.createElement("div");
+  el.className = "toast";
+  el.textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(() => {
+    el.classList.add("fade");
+    setTimeout(() => el.remove(), 400);
+  }, ms);
+}
+
+/* ---------------------------------------------------------------
+   STATS (localStorage)
+   --------------------------------------------------------------- */
+const STATS_KEY = "wordguess.stats.v1";
+
+function defaultStats() {
+  return {
+    played: 0, wins: 0, currentStreak: 0, maxStreak: 0,
+    dist: [0, 0, 0, 0, 0, 0]   // wins by number of guesses (index 0 => 1 guess)
+  };
+}
+
+function loadStats() {
+  try {
+    return Object.assign(defaultStats(), JSON.parse(localStorage.getItem(STATS_KEY)) || {});
+  } catch (e) { return defaultStats(); }
+}
+
+function saveStats(s) {
+  try { localStorage.setItem(STATS_KEY, JSON.stringify(s)); } catch (e) {}
+}
+
+let lastResult = null;   // { won, tries } for highlighting the distribution
+
+function recordResult(won, tries) {
+  const s = loadStats();
+  s.played++;
+  if (won) {
+    s.wins++;
+    s.currentStreak++;
+    s.maxStreak = Math.max(s.maxStreak, s.currentStreak);
+    s.dist[tries - 1]++;
+  } else {
+    s.currentStreak = 0;
+  }
+  saveStats(s);
+  lastResult = { won, tries };
+}
+
+function openStats(won, tries) {
+  const s = loadStats();
+  document.getElementById("st-played").textContent = s.played;
+  document.getElementById("st-win").textContent =
+    s.played ? Math.round((s.wins / s.played) * 100) : 0;
+  document.getElementById("st-cur").textContent = s.currentStreak;
+  document.getElementById("st-max").textContent = s.maxStreak;
+
+  // Distribution bars (scaled to the max bucket).
+  const dist = document.getElementById("dist");
+  dist.innerHTML = "";
+  const max = Math.max(1, ...s.dist);
+  for (let i = 0; i < 6; i++) {
+    const rowEl = document.createElement("div");
+    rowEl.className = "dist-row";
+    const isCurrent = lastResult && lastResult.won && lastResult.tries === i + 1;
+    const w = Math.round((s.dist[i] / max) * 100);
+    rowEl.innerHTML =
+      `<div class="label">${i + 1}</div>` +
+      `<div class="dist-bar ${isCurrent ? "current" : ""}" style="width:${Math.max(8, w)}%">${s.dist[i]}</div>`;
+    dist.appendChild(rowEl);
+  }
+
+  // End-of-game message + play again.
+  const msgEl = document.getElementById("endgame-msg");
+  const againBtn = document.getElementById("playagain-btn");
+  if (gameOver) {
+    msgEl.textContent = (lastResult && lastResult.won)
+      ? "You got it!"
+      : "The word was " + answer.toUpperCase();
+    againBtn.style.display = (mode === "free") ? "block" : "none";
+    // In daily mode there is no replay until tomorrow.
+    if (mode === "daily") {
+      msgEl.textContent += "  Come back tomorrow for a new daily word!";
+    }
+  } else {
+    msgEl.textContent = "";
+    againBtn.style.display = "none";
+  }
+
+  showOverlay("stats-overlay");
+}
+
+/* ---------------------------------------------------------------
+   SAVE / RESTORE in-progress game (so a refresh doesn't lose it)
+   Only the daily game is persisted per-day; free play is ephemeral
+   but we still keep the current session in case of refresh.
+   --------------------------------------------------------------- */
+const PROGRESS_KEY = "wordguess.progress.v1";
+
+function saveProgress() {
+  const data = {
+    mode,
+    answer,
+    guesses,
+    gameOver,
+    dayKey: mode === "daily" ? dailyKey() : null
+  };
+  try { localStorage.setItem(PROGRESS_KEY, JSON.stringify(data)); } catch (e) {}
+}
+
+function loadProgress() {
+  try {
+    const data = JSON.parse(localStorage.getItem(PROGRESS_KEY));
+    if (!data) return null;
+    // Daily progress is only valid for today's word.
+    if (data.mode === "daily" && data.dayKey !== dailyKey()) return null;
+    return data;
+  } catch (e) { return null; }
+}
+
+/* ---------------------------------------------------------------
+   NEW GAME / RESTORE
+   --------------------------------------------------------------- */
+function newGame(restore) {
+  buildBoard();
+  buildKeyboard();
+  guesses = [];
+  current = "";
+  gameOver = false;
+  keyState = {};
+  lastResult = null;
+
+  if (restore && restore.answer) {
+    // Re-apply a saved game.
+    answer = restore.answer;
+    gameOver = restore.gameOver;
+    for (let r = 0; r < restore.guesses.length; r++) {
+      const g = restore.guesses[r];
+      guesses.push(g);
+      const result = scoreGuess(g, answer);
+      // Render instantly (no animation) for restored rows.
+      for (let c = 0; c < COLS; c++) {
+        const tile = tileAt(r, c);
+        tile.textContent = g[c];
+        tile.classList.add(result[c]);
+      }
+      updateKeyboardColors(g, result);
+    }
+  } else {
+    answer = pickAnswer();
+  }
+
+  // Update mode toggle UI.
+  document.getElementById("mode-daily").classList.toggle("active", mode === "daily");
+  document.getElementById("mode-free").classList.toggle("active", mode === "free");
+
+  saveProgress();
+}
+
+/* ---------------------------------------------------------------
+   MODAL HELPERS
+   --------------------------------------------------------------- */
+function showOverlay(id) { document.getElementById(id).classList.add("show"); }
+function hideOverlay(id) { document.getElementById(id).classList.remove("show"); }
+
+document.querySelectorAll("[data-close]").forEach(btn => {
+  btn.addEventListener("click", () => btn.closest(".overlay").classList.remove("show"));
+});
+// Click on the dark backdrop closes the modal.
+document.querySelectorAll(".overlay").forEach(ov => {
+  ov.addEventListener("click", (e) => { if (e.target === ov) ov.classList.remove("show"); });
+});
+
+document.getElementById("help-btn").addEventListener("click", () => showOverlay("help-overlay"));
+document.getElementById("stats-btn").addEventListener("click", () => openStats());
+
+document.getElementById("playagain-btn").addEventListener("click", () => {
+  hideOverlay("stats-overlay");
+  newGame();
+});
+
+/* ---------------------------------------------------------------
+   MODE SWITCHING
+   --------------------------------------------------------------- */
+document.getElementById("mode-daily").addEventListener("click", () => {
+  if (mode === "daily") return;
+  mode = "daily";
+  const saved = loadProgress();
+  newGame(saved && saved.mode === "daily" ? saved : null);
+});
+document.getElementById("mode-free").addEventListener("click", () => {
+  mode = "free";
+  newGame();          // always a fresh random word
+  toast("Free play: random word!");
+});
+
+/* ---------------------------------------------------------------
+   BOOT
+   --------------------------------------------------------------- */
+(function init() {
+  const saved = loadProgress();
+  if (saved) {
+    mode = saved.mode;
+    newGame(saved);
+  } else {
+    mode = "daily";
+    newGame();
+  }
+
+  // Show help automatically on the very first visit.
+  if (!localStorage.getItem("wordguess.seenHelp")) {
+    showOverlay("help-overlay");
+    try { localStorage.setItem("wordguess.seenHelp", "1"); } catch (e) {}
+  }
+})();
+</script>
+  <footer class="site-footer" style="text-align:center;padding:24px 16px;margin-top:32px;color:#94a3b8;font-size:13px;line-height:1.5;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">&copy; 2025&ndash;2026 <a href="https://github.com/setnev" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:none">Steven Peterson</a></footer>
+</body>
+</html>
