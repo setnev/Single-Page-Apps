@@ -63,6 +63,28 @@ It will be live in under a minute.
 |-----|-------------|------|
 | [Password Generator](apps/password-generator/) | Cryptographically strong, fully offline password generator | `security` `generator` `privacy` `offline` |
 | [Screen Time Quest](apps/screen-time-quest/) | Kids earn screen time by completing chores; optional TOTP parent approval | `family` `kids` `chores` `gamification` `offline` |
+| [JSON Formatter & Validator](apps/json-formatter/) | Format, minify, validate & explore JSON with a tree view | `json` `formatter` `developer` `offline` |
+| [Regex Tester](apps/regex-tester/) | Live regex matching with highlights, capture groups & cheat sheet | `regex` `developer` `offline` |
+| [Base64 Encoder / Decoder](apps/base64-encoder-decoder/) | UTF-8-safe & file Base64 with URL-safe option | `base64` `developer` `offline` |
+| [Color Picker + Contrast Checker](apps/color-picker-contrast/) | HEX/RGB/HSL picker with WCAG contrast checking | `color` `design` `accessibility` `offline` |
+| [UUID / Token Generator](apps/uuid-token-generator/) | Cryptographically secure UUIDs & random tokens in bulk | `uuid` `token` `security` `offline` |
+| [Cron Expression Builder](apps/cron-expression-builder/) | Build cron expressions with plain-English & next-run preview | `cron` `scheduler` `developer` `offline` |
+| [File Converter](apps/file-converter/) | Client-side image (PNG/JPEG/WEBP) & CSV⇄JSON conversion | `converter` `images` `csv` `privacy` `offline` |
+| [Markdown Editor](apps/markdown-editor/) | Live Markdown editor with multi-doc local save & export | `markdown` `editor` `writing` `offline` |
+| [Notes](apps/note-taking/) | Private note-taking with search, tags & JSON backup | `notes` `productivity` `privacy` `offline` |
+| [Expense & Budget Tracker](apps/expense-tracker/) | Track income/expenses with charts & monthly budgets | `finance` `budget` `privacy` `offline` |
+| [Mortgage / Loan Calculator](apps/mortgage-loan-calculator/) | Payments, amortization schedule & extra-payment savings | `calculator` `mortgage` `finance` `offline` |
+| [Macro / Calorie Calculator](apps/macro-calorie-calculator/) | BMR/TDEE, calorie targets & macro splits | `calculator` `fitness` `health` `offline` |
+| [Tip Splitter](apps/tip-splitter/) | Split the bill & tip across any number of people | `calculator` `tip` `utility` `offline` |
+| [Freelance Rate Calculator](apps/freelance-rate-calculator/) | Find the hourly rate to hit your income goals | `calculator` `freelance` `pricing` `offline` |
+| [Retirement Savings Estimator](apps/retirement-savings-estimator/) | Project savings growth & sustainable withdrawals | `calculator` `retirement` `investing` `offline` |
+| [Word Guess](apps/word-guess/) | A Wordle-style daily word game with stats | `game` `word` `puzzle` `offline` |
+| [Memory Match](apps/memory-match/) | Card matching memory game with difficulty levels | `game` `memory` `cards` `offline` |
+| [Typing Speed Test](apps/typing-speed-test/) | Measure WPM & accuracy with timed/word-count modes | `game` `typing` `wpm` `offline` |
+| [Resume Analyzer](apps/resume-analyzer/) | AI resume feedback (bring-your-own LLM key) | `ai` `resume` `career` `pluggable-llm` |
+| [Cover Letter Generator](apps/cover-letter-generator/) | AI-tailored cover letters (bring-your-own LLM key) | `ai` `cover-letter` `writing` `pluggable-llm` |
+| [Text Summarizer](apps/text-summarizer/) | AI summaries in multiple formats (bring-your-own LLM key) | `ai` `summarizer` `productivity` `pluggable-llm` |
+| [Prompt Builder & Tester](apps/prompt-builder/) | Compose, test & refine LLM prompts (bring-your-own LLM key) | `ai` `prompt-engineering` `pluggable-llm` |
 
 > Apps will be added here as the collection grows. Each entry links directly to the live demo and source.
 
