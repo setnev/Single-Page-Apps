@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<!-- Mobile-first: lock viewport so tap targets stay big and layout doesn't zoom oddly -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Tip Splitter</title>
+<style>
+  /* ===== Theme tokens (dark) ===== */
+  :root {
+    --bg: #0f172a;          /* page background */
+    --panel: #1e293b;       /* card background */
+    --panel-2: #273449;     /* nested / input background */
+    --accent: #38bdf8;      /* primary accent */
+    --text: #e2e8f0;        /* main text */
+    --muted: #94a3b8;       /* secondary text */
+    --good: #34d399;        /* positive / result green */
+    --radius: 16px;
+    --gap: 14px;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    /* System font stack — no external fonts */
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 17px;
+    line-height: 1.4;
+  }
+
+  /* App is centered with a comfortable max width on bigger screens */
+  .app {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 18px 16px 48px;
+  }
+
+  header h1 {
+    font-size: 1.5rem;
+    margin: 6px 0 2px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  header p {
+    margin: 0 0 18px;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+
+  /* ===== Cards ===== */
+  .card {
+    background: var(--panel);
+    border-radius: var(--radius);
+    padding: 18px 16px;
+    margin-bottom: var(--gap);
+  }
+
+  label, .field-label {
+    display: block;
+    font-size: 0.9rem;
+    color: var(--muted);
+    margin-bottom: 8px;
+    font-weight: 600;
+  }
+
+  /* ===== Inputs ===== */
+  .input-wrap { position: relative; }
+  .input-prefix {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    font-size: 1.25rem;
+    pointer-events: none;
+  }
+
+  input[type="number"], input[type="text"] {
+    width: 100%;
+    background: var(--panel-2);
+    border: 2px solid transparent;
+    border-radius: 12px;
+    color: var(--text);
+    font-size: 1.25rem;
+    padding: 16px 14px;
+    outline: none;
+    transition: border-color 0.15s ease;
+    /* big tap target on phones */
+    min-height: 56px;
+  }
+  input.has-prefix { padding-left: 34px; }
+  input:focus { border-color: var(--accent); }
+
+  /* hide spinner arrows for a cleaner look */
+  input[type=number]::-webkit-inner-spin-button,
+  input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  input[type=number] { -moz-appearance: textfield; }
+
+  /* ===== Tip percentage quick buttons ===== */
+  .tip-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .tip-btn {
+    background: var(--panel-2);
+    border: 2px solid transparent;
+    color: var(--text);
+    font-size: 1rem;
+    font-weight: 700;
+    padding: 14px 0;
+    border-radius: 12px;
+    cursor: pointer;
+    min-height: 52px;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+  .tip-btn:active { transform: scale(0.97); }
+  .tip-btn.active {
+    background: var(--accent);
+    color: #04293a;
+    border-color: var(--accent);
+  }
+
+  /* ===== Stepper (people count) ===== */
+  .stepper {
+    display: flex;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .stepper button {
+    flex: 0 0 auto;
+    width: 64px;
+    height: 64px;
+    border-radius: 14px;
+    border: none;
+    background: var(--panel-2);
+    color: var(--accent);
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .stepper button:active { transform: scale(0.95); }
+  .stepper button:disabled { opacity: 0.35; cursor: not-allowed; }
+  .stepper .count {
+    flex: 1 1 auto;
+    text-align: center;
+    background: var(--panel-2);
+    border-radius: 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 6px;
+  }
+  .stepper .count .num { font-size: 1.9rem; font-weight: 800; }
+  .stepper .count .lbl { font-size: 0.75rem; color: var(--muted); }
+
+  /* ===== Toggle rows ===== */
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 4px 0;
+  }
+  .toggle-row + .toggle-row { margin-top: 14px; }
+  .toggle-row .t-text { flex: 1 1 auto; }
+  .toggle-row .t-text .t-title { font-weight: 600; }
+  .toggle-row .t-text .t-sub { font-size: 0.8rem; color: var(--muted); }
+
+  /* iOS-style switch */
+  .switch { position: relative; display: inline-block; width: 56px; height: 32px; flex: 0 0 auto; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider {
+    position: absolute; cursor: pointer; inset: 0;
+    background: var(--panel-2); border-radius: 32px; transition: 0.2s;
+  }
+  .slider:before {
+    content: ""; position: absolute; height: 24px; width: 24px;
+    left: 4px; bottom: 4px; background: var(--muted); border-radius: 50%; transition: 0.2s;
+  }
+  .switch input:checked + .slider { background: var(--accent); }
+  .switch input:checked + .slider:before { transform: translateX(24px); background: #04293a; }
+
+  /* tax field hidden until toggled */
+  .collapsible { margin-top: 14px; display: none; }
+  .collapsible.open { display: block; }
+
+  /* ===== Results ===== */
+  .results { background: var(--panel); }
+  .result-main {
+    text-align: center;
+    padding: 8px 0 14px;
+  }
+  .result-main .r-label { color: var(--muted); font-size: 0.95rem; }
+  .result-main .r-value {
+    color: var(--good);
+    font-size: 3.4rem;
+    font-weight: 800;
+    letter-spacing: -1px;
+    line-height: 1.05;
+  }
+  .result-sub {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 6px;
+  }
+  .result-sub .box {
+    background: var(--panel-2);
+    border-radius: 12px;
+    padding: 12px;
+    text-align: center;
+  }
+  .result-sub .box .b-label { color: var(--muted); font-size: 0.78rem; }
+  .result-sub .box .b-value { font-size: 1.5rem; font-weight: 700; margin-top: 2px; }
+
+  .extra-note {
+    margin-top: 12px;
+    background: rgba(56, 189, 248, 0.12);
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 0.9rem;
+    color: var(--accent);
+    display: none;
+  }
+  .extra-note.show { display: block; }
+
+  /* ===== Uneven split ===== */
+  .uneven-list { margin-top: 14px; display: none; }
+  .uneven-list.open { display: block; }
+  .uneven-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .uneven-row .who {
+    flex: 0 0 90px;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+  .uneven-row .share-input { flex: 1 1 auto; }
+  .uneven-row .share-input input { font-size: 1.05rem; min-height: 50px; padding: 12px 12px 12px 30px; }
+  .uneven-hint { font-size: 0.8rem; color: var(--muted); margin: 2px 0 10px; }
+  .uneven-warn { color: #fbbf24; font-size: 0.85rem; margin-top: 6px; display: none; }
+  .uneven-warn.show { display: block; }
+
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.78rem;
+    margin-top: 8px;
+  }
+
+  /* Small reset link */
+  .reset-btn {
+    width: 100%;
+    margin-top: 4px;
+    background: transparent;
+    border: 2px solid var(--panel-2);
+    color: var(--muted);
+    border-radius: 12px;
+    padding: 14px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    min-height: 52px;
+  }
+  .reset-btn:active { transform: scale(0.99); }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>🧾 Tip Splitter</h1>
+    <p>Split the bill fairly in seconds — works fully offline.</p>
+  </header>
+
+  <!-- ===== Bill amount ===== -->
+  <section class="card">
+    <label for="bill">Bill amount</label>
+    <div class="input-wrap">
+      <span class="input-prefix" id="prefixBill">$</span>
+      <input class="has-prefix" type="number" id="bill" inputmode="decimal" placeholder="0.00" min="0" step="0.01">
+    </div>
+  </section>
+
+  <!-- ===== Tip percentage ===== -->
+  <section class="card">
+    <label>Tip percentage</label>
+    <div class="tip-grid" id="tipGrid">
+      <button type="button" class="tip-btn" data-tip="10">10%</button>
+      <button type="button" class="tip-btn" data-tip="15">15%</button>
+      <button type="button" class="tip-btn active" data-tip="18">18%</button>
+      <button type="button" class="tip-btn" data-tip="20">20%</button>
+      <button type="button" class="tip-btn" data-tip="25">25%</button>
+    </div>
+    <div class="input-wrap">
+      <span class="input-prefix" style="font-size:1rem; right:14px; left:auto;">%</span>
+      <input type="number" id="tipCustom" inputmode="decimal" placeholder="Custom %" min="0" step="0.1">
+    </div>
+  </section>
+
+  <!-- ===== Number of people (stepper) ===== -->
+  <section class="card">
+    <label>Number of people</label>
+    <div class="stepper">
+      <button type="button" id="peopleMinus" aria-label="Fewer people">−</button>
+      <div class="count">
+        <span class="num" id="peopleNum">2</span>
+        <span class="lbl">people</span>
+      </div>
+      <button type="button" id="peoplePlus" aria-label="More people">+</button>
+    </div>
+  </section>
+
+  <!-- ===== Options ===== -->
+  <section class="card">
+    <!-- Round up -->
+    <div class="toggle-row">
+      <div class="t-text">
+        <div class="t-title">Round up per person</div>
+        <div class="t-sub">Round each share up to the next dollar</div>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="roundUp">
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <!-- Tax handling -->
+    <div class="toggle-row">
+      <div class="t-text">
+        <div class="t-title">Tip on pre-tax amount</div>
+        <div class="t-sub">Exclude tax from the tip calculation</div>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="preTax">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="collapsible" id="taxWrap">
+      <label for="tax">Tax included in bill</label>
+      <div class="input-wrap">
+        <span class="input-prefix" id="prefixTax">$</span>
+        <input class="has-prefix" type="number" id="tax" inputmode="decimal" placeholder="0.00" min="0" step="0.01">
+      </div>
+    </div>
+
+    <!-- Uneven split -->
+    <div class="toggle-row">
+      <div class="t-text">
+        <div class="t-title">Uneven split</div>
+        <div class="t-sub">Some people pay more of the bill</div>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="uneven">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="uneven-list" id="unevenList">
+      <div class="uneven-hint">Enter each person's share of the <strong>pre-tip bill</strong>. We add tip &amp; tax proportionally.</div>
+      <!-- rows injected by JS -->
+      <div id="unevenRows"></div>
+      <div class="uneven-warn" id="unevenWarn"></div>
+    </div>
+  </section>
+
+  <!-- ===== Results ===== -->
+  <section class="card results">
+    <div class="result-main">
+      <div class="r-label">Per person</div>
+      <div class="r-value" id="perPerson">$0.00</div>
+    </div>
+    <div class="result-sub">
+      <div class="box">
+        <div class="b-label">Tip amount</div>
+        <div class="b-value" id="tipAmount">$0.00</div>
+      </div>
+      <div class="box">
+        <div class="b-label">Total bill</div>
+        <div class="b-value" id="totalBill">$0.00</div>
+      </div>
+    </div>
+    <div class="extra-note" id="roundNote"></div>
+    <!-- per-person breakdown for uneven split -->
+    <div class="extra-note" id="unevenBreakdown"></div>
+  </section>
+
+  <button type="button" class="reset-btn" id="resetBtn">Reset</button>
+
+  <footer>Private &amp; offline. Nothing leaves your device.</footer>
+</div>
+
+<script>
+/* =========================================================
+   Tip Splitter — all logic, no dependencies.
+   State is read from the DOM on every recalculation so the
+   results always reflect exactly what the user sees.
+   ========================================================= */
+
+// ---- Element references ----
+var el = {
+  bill:        document.getElementById('bill'),
+  tipGrid:     document.getElementById('tipGrid'),
+  tipCustom:   document.getElementById('tipCustom'),
+  peopleNum:   document.getElementById('peopleNum'),
+  peopleMinus: document.getElementById('peopleMinus'),
+  peoplePlus:  document.getElementById('peoplePlus'),
+  roundUp:     document.getElementById('roundUp'),
+  preTax:      document.getElementById('preTax'),
+  taxWrap:     document.getElementById('taxWrap'),
+  tax:         document.getElementById('tax'),
+  uneven:      document.getElementById('uneven'),
+  unevenList:  document.getElementById('unevenList'),
+  unevenRows:  document.getElementById('unevenRows'),
+  unevenWarn:  document.getElementById('unevenWarn'),
+  perPerson:   document.getElementById('perPerson'),
+  tipAmount:   document.getElementById('tipAmount'),
+  totalBill:   document.getElementById('totalBill'),
+  roundNote:   document.getElementById('roundNote'),
+  unevenBreakdown: document.getElementById('unevenBreakdown'),
+  resetBtn:    document.getElementById('resetBtn')
+};
+
+// ---- Configurable currency prefix (default "$") ----
+var CURRENCY = '$';
+
+// ---- App state that isn't naturally stored in an input ----
+var state = {
+  tipPercent: 18,   // currently selected tip %
+  people: 2         // number of people
+};
+
+/* Format a number as currency with 2 decimals, e.g. "$12.50". */
+function money(n) {
+  if (!isFinite(n)) n = 0;
+  return CURRENCY + n.toFixed(2);
+}
+
+/* Read a numeric input safely; returns 0 for empty/invalid/negative. */
+function num(input) {
+  var v = parseFloat(input.value);
+  if (!isFinite(v) || v < 0) return 0;
+  return v;
+}
+
+/* ---------------------------------------------------------
+   Build the uneven-split rows. One text input per person,
+   each holding that person's share of the pre-tip bill.
+   --------------------------------------------------------- */
+function buildUnevenRows() {
+  // Preserve any values already typed so resizing the list isn't destructive.
+  var existing = [];
+  var inputs = el.unevenRows.querySelectorAll('input');
+  for (var k = 0; k < inputs.length; k++) existing.push(inputs[k].value);
+
+  el.unevenRows.innerHTML = '';
+  for (var i = 0; i < state.people; i++) {
+    var row = document.createElement('div');
+    row.className = 'uneven-row';
+
+    var who = document.createElement('div');
+    who.className = 'who';
+    who.textContent = 'Person ' + (i + 1);
+
+    var wrap = document.createElement('div');
+    wrap.className = 'input-wrap share-input';
+
+    var prefix = document.createElement('span');
+    prefix.className = 'input-prefix';
+    prefix.textContent = CURRENCY;
+
+    var inp = document.createElement('input');
+    inp.type = 'number';
+    inp.className = 'has-prefix';
+    inp.setAttribute('inputmode', 'decimal');
+    inp.placeholder = '0.00';
+    inp.min = '0';
+    inp.step = '0.01';
+    inp.value = (existing[i] !== undefined) ? existing[i] : '';
+    inp.addEventListener('input', calculate);
+
+    wrap.appendChild(prefix);
+    wrap.appendChild(inp);
+    row.appendChild(who);
+    row.appendChild(wrap);
+    el.unevenRows.appendChild(row);
+  }
+}
+
+/* ---------------------------------------------------------
+   Core calculation. Runs on any change.
+   --------------------------------------------------------- */
+function calculate() {
+  var bill   = num(el.bill);
+  var people = state.people;
+  var tipPct = state.tipPercent;
+
+  // Determine the base the tip is calculated on.
+  // If "pre-tax" is on, subtract the entered tax from the bill base.
+  var taxAmount = el.preTax.checked ? num(el.tax) : 0;
+  var tipBase = bill - taxAmount;
+  if (tipBase < 0) tipBase = 0; // guard against tax > bill
+
+  var tip = tipBase * (tipPct / 100);
+  var total = bill + tip; // total = full bill (incl. its tax) + tip
+
+  // Reset optional notes each pass.
+  el.roundNote.classList.remove('show');
+  el.unevenBreakdown.classList.remove('show');
+  el.unevenWarn.classList.remove('show');
+
+  if (el.uneven.checked) {
+    calculateUneven(bill, tipBase, taxAmount, tip, total, tipPct);
+  } else {
+    calculateEqual(tip, total, people);
+  }
+
+  // Headline tip & total always reflect the simple math.
+  el.tipAmount.textContent = money(tip);
+  el.totalBill.textContent = money(total);
+}
+
+/* ---- Equal split (default, primary flow) ---- */
+function calculateEqual(tip, total, people) {
+  var perPerson = people > 0 ? total / people : 0;
+
+  if (el.roundUp.checked && people > 0) {
+    var rounded = Math.ceil(perPerson - 1e-9); // tiny epsilon avoids float jitter
+    var newTotal = rounded * people;
+    var extra = newTotal - total;
+    el.perPerson.textContent = money(rounded);
+
+    if (extra > 0.0049) {
+      el.roundNote.textContent =
+        'Rounding up adds ' + money(extra) + ' to the tip (each pays ' +
+        money(rounded) + '). New total: ' + money(newTotal) + '.';
+      el.roundNote.classList.add('show');
+    }
+  } else {
+    el.perPerson.textContent = money(perPerson);
+  }
+}
+
+/* ---- Uneven split ----
+   Each person enters their portion of the pre-tip bill. We scale
+   tip & tax proportionally to each portion. Falls back to equal
+   weighting if no shares are entered yet. --------------------- */
+function calculateUneven(bill, tipBase, taxAmount, tip, total, tipPct) {
+  var inputs = el.unevenRows.querySelectorAll('input');
+  var shares = [];
+  var sumShares = 0;
+  for (var i = 0; i < inputs.length; i++) {
+    var v = parseFloat(inputs[i].value);
+    if (!isFinite(v) || v < 0) v = 0;
+    shares.push(v);
+    sumShares += v;
+  }
+
+  var amounts = [];
+  var i2;
+
+  if (sumShares <= 0) {
+    // No portions entered yet — show equal split as a sensible default.
+    var n = shares.length || 1;
+    for (i2 = 0; i2 < n; i2++) amounts.push(total / n);
+  } else {
+    // Each person owes: their proportion of the full total.
+    for (i2 = 0; i2 < shares.length; i2++) {
+      amounts.push(total * (shares[i2] / sumShares));
+    }
+    // Warn if entered shares don't add up to the bill (informational only).
+    var diff = sumShares - bill;
+    if (Math.abs(diff) > 0.01) {
+      var word = diff > 0 ? 'over' : 'under';
+      el.unevenWarn.textContent =
+        'Heads up: entered shares (' + money(sumShares) + ') are ' + word +
+        ' the bill (' + money(bill) + '). Splitting tip & tax by the proportions you gave.';
+      el.unevenWarn.classList.add('show');
+    }
+  }
+
+  // Optional round-up applied to each person's amount.
+  var extraTotal = 0;
+  var lines = [];
+  for (i2 = 0; i2 < amounts.length; i2++) {
+    var amt = amounts[i2];
+    if (el.roundUp.checked) {
+      var r = Math.ceil(amt - 1e-9);
+      extraTotal += (r - amt);
+      amt = r;
+    }
+    lines.push('Person ' + (i2 + 1) + ': ' + money(amt));
+  }
+
+  // Headline "per person" isn't meaningful for uneven; show the breakdown instead.
+  el.perPerson.textContent = lines.length ? 'See below' : money(0);
+  el.perPerson.style.fontSize = '2rem';
+
+  el.unevenBreakdown.innerHTML = lines.join('<br>');
+  el.unevenBreakdown.classList.add('show');
+
+  if (el.roundUp.checked && extraTotal > 0.0049) {
+    el.roundNote.textContent =
+      'Rounding up adds ' + money(extraTotal) + ' extra to the tip.';
+    el.roundNote.classList.add('show');
+  }
+}
+
+/* ---------------------------------------------------------
+   Wire up events
+   --------------------------------------------------------- */
+
+// Tip quick buttons
+el.tipGrid.addEventListener('click', function (e) {
+  var btn = e.target.closest('.tip-btn');
+  if (!btn) return;
+  state.tipPercent = parseFloat(btn.getAttribute('data-tip'));
+  setActiveTipButton(btn);
+  el.tipCustom.value = ''; // clear custom when a preset is chosen
+  calculate();
+});
+
+// Custom tip field
+el.tipCustom.addEventListener('input', function () {
+  var v = parseFloat(el.tipCustom.value);
+  if (isFinite(v) && v >= 0) {
+    state.tipPercent = v;
+    setActiveTipButton(null); // deselect presets
+  } else {
+    state.tipPercent = 0;
+  }
+  calculate();
+});
+
+function setActiveTipButton(activeBtn) {
+  var btns = el.tipGrid.querySelectorAll('.tip-btn');
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].classList.toggle('active', btns[i] === activeBtn);
+  }
+}
+
+// People stepper
+function setPeople(n) {
+  state.people = Math.max(1, Math.min(50, n)); // clamp 1..50
+  el.peopleNum.textContent = state.people;
+  el.peopleMinus.disabled = state.people <= 1;
+  el.peoplePlus.disabled = state.people >= 50;
+  if (el.uneven.checked) buildUnevenRows();
+  calculate();
+}
+el.peopleMinus.addEventListener('click', function () { setPeople(state.people - 1); });
+el.peoplePlus.addEventListener('click', function () { setPeople(state.people + 1); });
+
+// Bill & tax inputs
+el.bill.addEventListener('input', calculate);
+el.tax.addEventListener('input', calculate);
+
+// Round up toggle
+el.roundUp.addEventListener('change', calculate);
+
+// Pre-tax toggle reveals the tax field
+el.preTax.addEventListener('change', function () {
+  el.taxWrap.classList.toggle('open', el.preTax.checked);
+  calculate();
+});
+
+// Uneven toggle reveals the per-person list
+el.uneven.addEventListener('change', function () {
+  el.unevenList.classList.toggle('open', el.uneven.checked);
+  if (el.uneven.checked) {
+    buildUnevenRows();
+  } else {
+    // Restore the headline number styling for equal split
+    el.perPerson.style.fontSize = '';
+  }
+  calculate();
+});
+
+// Reset everything to defaults
+el.resetBtn.addEventListener('click', function () {
+  el.bill.value = '';
+  el.tax.value = '';
+  el.tipCustom.value = '';
+  el.roundUp.checked = false;
+  el.preTax.checked = false;
+  el.uneven.checked = false;
+  el.taxWrap.classList.remove('open');
+  el.unevenList.classList.remove('open');
+  el.perPerson.style.fontSize = '';
+  state.tipPercent = 18;
+  setActiveTipButton(el.tipGrid.querySelector('[data-tip="18"]'));
+  setPeople(2);
+  calculate();
+});
+
+// ---- Initial render ----
+setPeople(state.people); // also triggers first calculate()
+</script>
+  <footer class="site-footer" style="text-align:center;padding:24px 16px;margin-top:32px;color:#94a3b8;font-size:13px;line-height:1.5;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">&copy; 2025&ndash;2026 <a href="https://github.com/setnev" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:none">Steven Peterson</a></footer>
+</body>
+</html>
