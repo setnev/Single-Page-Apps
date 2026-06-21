@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Cron Expression Builder</title>
+<style>
+  /* ---------- Theme tokens ---------- */
+  :root {
+    --bg: #0f172a;
+    --panel: #1e293b;
+    --panel-2: #273449;
+    --accent: #38bdf8;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --good: #34d399;
+    --bad: #f87171;
+    --radius: 12px;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+      Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono",
+      monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    line-height: 1.5;
+  }
+
+  body { padding: 16px; }
+
+  .wrap {
+    max-width: 960px;
+    margin: 0 auto;
+  }
+
+  header h1 {
+    font-size: 1.5rem;
+    margin: 0 0 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  header p {
+    color: var(--muted);
+    margin: 0 0 20px;
+    font-size: 0.95rem;
+  }
+
+  .panel {
+    background: var(--panel);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+
+  h2 {
+    font-size: 1.05rem;
+    margin: 0 0 12px;
+  }
+
+  /* ---------- Raw expression area ---------- */
+  .raw-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: stretch;
+  }
+  .raw-input {
+    flex: 1 1 240px;
+    min-width: 0;
+    font-family: var(--mono);
+    font-size: 1.2rem;
+    letter-spacing: 1px;
+    background: var(--panel-2);
+    border: 1px solid #334155;
+    color: var(--text);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+  }
+  .raw-input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .raw-input.bad { border-color: var(--bad); }
+
+  button {
+    cursor: pointer;
+    font-family: var(--font);
+    font-size: 0.9rem;
+    border: none;
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    background: var(--panel-2);
+    color: var(--text);
+    transition: background 0.15s, transform 0.05s;
+  }
+  button:hover { background: #31425c; }
+  button:active { transform: translateY(1px); }
+  button.accent { background: var(--accent); color: #06283d; font-weight: 600; }
+  button.accent:hover { background: #5bcbfb; }
+
+  /* ---------- Status / description ---------- */
+  .status {
+    margin-top: 12px;
+    font-size: 0.95rem;
+  }
+  .status.good { color: var(--good); }
+  .status.bad { color: var(--bad); }
+
+  .english {
+    margin-top: 8px;
+    font-size: 1.05rem;
+    color: var(--text);
+  }
+  .english .muted { color: var(--muted); }
+
+  /* ---------- Presets ---------- */
+  .presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .presets button { font-size: 0.85rem; }
+
+  /* ---------- Builder fields ---------- */
+  .fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 12px;
+  }
+  .field {
+    background: var(--panel-2);
+    border-radius: var(--radius);
+    padding: 12px;
+  }
+  .field h3 {
+    margin: 0 0 8px;
+    font-size: 0.9rem;
+    color: var(--accent);
+  }
+  .field .hint {
+    color: var(--muted);
+    font-size: 0.72rem;
+    margin: 0 0 8px;
+  }
+  .mode-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 0.85rem;
+  }
+  .mode-row label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+  }
+  .field select, .field input[type="number"] {
+    background: var(--bg);
+    border: 1px solid #334155;
+    color: var(--text);
+    border-radius: 8px;
+    padding: 5px 7px;
+    font-family: var(--font);
+    font-size: 0.85rem;
+  }
+  .field input[type="number"] { width: 64px; }
+  .field select[multiple] {
+    width: 100%;
+    min-height: 110px;
+    margin-top: 4px;
+  }
+  .inline {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .sub { margin-left: 22px; margin-top: 2px; }
+
+  /* ---------- Next runs ---------- */
+  ol.runs {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  ol.runs li {
+    font-family: var(--mono);
+    font-size: 0.95rem;
+    padding: 8px 10px;
+    background: var(--panel-2);
+    border-radius: 8px;
+    margin-bottom: 6px;
+  }
+  ol.runs li .rel { color: var(--muted); font-family: var(--font); font-size: 0.8rem; }
+
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--good);
+    color: #06283d;
+    padding: 10px 18px;
+    border-radius: var(--radius);
+    font-weight: 600;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  footer {
+    color: var(--muted);
+    font-size: 0.8rem;
+    text-align: center;
+    margin-top: 8px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>⏰ Cron Expression Builder</h1>
+    <p>Build, parse, and preview standard 5-field cron expressions — fully offline.</p>
+  </header>
+
+  <!-- Raw expression + actions -->
+  <section class="panel">
+    <h2>Expression</h2>
+    <div class="raw-row">
+      <input id="raw" class="raw-input" type="text" spellcheck="false"
+             autocomplete="off" value="* * * * *" aria-label="Cron expression" />
+      <button id="copyBtn" class="accent" type="button">Copy</button>
+    </div>
+    <div id="status" class="status good"></div>
+    <div id="english" class="english"></div>
+  </section>
+
+  <!-- Presets -->
+  <section class="panel">
+    <h2>Quick presets</h2>
+    <div class="presets" id="presets">
+      <button type="button" data-cron="* * * * *">Every minute</button>
+      <button type="button" data-cron="0 * * * *">Hourly</button>
+      <button type="button" data-cron="0 0 * * *">Daily midnight</button>
+      <button type="button" data-cron="0 9 * * 1-5">Weekday 9am</button>
+      <button type="button" data-cron="0 0 * * 0">Weekly (Sun)</button>
+      <button type="button" data-cron="0 0 1 * *">Monthly</button>
+      <button type="button" data-cron="0 0 1 1 *">Yearly</button>
+    </div>
+  </section>
+
+  <!-- Visual builder -->
+  <section class="panel">
+    <h2>Visual builder</h2>
+    <div class="fields" id="fields"></div>
+  </section>
+
+  <!-- Next runs -->
+  <section class="panel">
+    <h2>Next 5 run times <span class="english muted" style="font-size:.8rem">(local time)</span></h2>
+    <ol class="runs" id="runs"></ol>
+  </section>
+
+  <footer>Runs 100% in your browser. No network, no tracking.</footer>
+</div>
+
+<div class="toast" id="toast">Copied!</div>
+
+<script>
+/* =====================================================================
+   Cron Expression Builder — all logic, no dependencies.
+   Field order: minute hour day-of-month month day-of-week
+   ===================================================================== */
+
+// Definition of each field: index, label, allowed numeric range, names.
+const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const DOW_NAMES   = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const DOW_FULL    = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+const MONTH_FULL  = ["January","February","March","April","May","June","July",
+                     "August","September","October","November","December"];
+
+const FIELDS = [
+  { key: "min",   label: "Minute",       min: 0, max: 59, hint: "0-59" },
+  { key: "hour",  label: "Hour",         min: 0, max: 23, hint: "0-23" },
+  { key: "dom",   label: "Day of month", min: 1, max: 31, hint: "1-31" },
+  { key: "month", label: "Month",        min: 1, max: 12, hint: "1-12 / Jan-Dec" },
+  { key: "dow",   label: "Day of week",  min: 0, max: 6,  hint: "0-6 (Sun=0)" },
+];
+
+// Named-token maps so we can accept e.g. "MON" or "jan".
+const NAME_MAPS = {
+  month: MONTH_NAMES.reduce((m, n, i) => (m[n.toLowerCase()] = i + 1, m), {}),
+  dow:   DOW_NAMES.reduce((m, n, i) => (m[n.toLowerCase()] = i, m), {}),
+};
+
+/* ---------------------------------------------------------------------
+   PARSING
+   parseField returns a sorted, de-duplicated array of all matching
+   integers for one field. Throws on malformed input.
+   --------------------------------------------------------------------- */
+function resolveToken(tok, field) {
+  // Convert a name token (JAN, mon) to its number if applicable.
+  const map = NAME_MAPS[field.key];
+  if (map) {
+    const lower = String(tok).toLowerCase();
+    if (lower in map) return map[lower];
+  }
+  if (!/^\d+$/.test(tok)) throw new Error(`Invalid value "${tok}" in ${field.label}`);
+  return parseInt(tok, 10);
+}
+
+function parseField(raw, field) {
+  const result = new Set();
+
+  // A field can be a comma-separated list of items.
+  const items = raw.split(",");
+  if (items.some(s => s.trim() === "")) {
+    throw new Error(`Empty term in ${field.label}`);
+  }
+
+  for (let item of items) {
+    item = item.trim();
+
+    // Step syntax: <range-or-*>/<step>
+    let step = 1;
+    const slash = item.indexOf("/");
+    let base = item;
+    if (slash !== -1) {
+      base = item.slice(0, slash);
+      const stepStr = item.slice(slash + 1);
+      if (!/^\d+$/.test(stepStr) || parseInt(stepStr, 10) === 0) {
+        throw new Error(`Invalid step "/${stepStr}" in ${field.label}`);
+      }
+      step = parseInt(stepStr, 10);
+    }
+
+    let lo, hi;
+    if (base === "*") {
+      lo = field.min; hi = field.max;
+    } else if (base.includes("-")) {
+      // Range a-b
+      const parts = base.split("-");
+      if (parts.length !== 2) throw new Error(`Invalid range "${base}" in ${field.label}`);
+      lo = resolveToken(parts[0], field);
+      hi = resolveToken(parts[1], field);
+    } else {
+      // Single value. If a step was given (n/step) treat n as start of range to max.
+      lo = resolveToken(base, field);
+      hi = slash !== -1 ? field.max : lo;
+    }
+
+    // DOW: accept 7 as Sunday alias for the high end before validation.
+    if (field.key === "dow") {
+      if (lo === 7) lo = 0;
+      if (hi === 7) hi = 0;
+    }
+
+    if (lo < field.min || hi > field.max || lo > hi) {
+      throw new Error(`Value out of range in ${field.label} (allowed ${field.min}-${field.max})`);
+    }
+
+    for (let v = lo; v <= hi; v += step) result.add(v);
+  }
+
+  return [...result].sort((a, b) => a - b);
+}
+
+// Parse a whole expression into { min, hour, dom, month, dow } value arrays.
+// Also keeps the raw per-field strings and whether dom/dow are restricted.
+function parseCron(text) {
+  const parts = text.trim().split(/\s+/);
+  if (parts.length !== 5) {
+    throw new Error(`Expected 5 fields, got ${parts.length}`);
+  }
+  const parsed = {};
+  FIELDS.forEach((f, i) => {
+    parsed[f.key] = { raw: parts[i], values: parseField(parts[i], f) };
+  });
+  parsed.domRestricted = parts[2] !== "*";
+  parsed.dowRestricted = parts[4] !== "*";
+  return parsed;
+}
+
+/* ---------------------------------------------------------------------
+   PLAIN-ENGLISH DESCRIPTION
+   --------------------------------------------------------------------- */
+function pad2(n) { return String(n).padStart(2, "0"); }
+
+// Describe one field's value list compactly, optionally via name maps.
+function describeList(values, field, names) {
+  // Detect "every value" (full range).
+  const full = field.max - field.min + 1;
+  if (values.length === full) return "every";
+  const fmt = (v) => names ? names[v - (field.key === "month" ? 1 : 0)] : v;
+  if (values.length === 1) return String(fmt(values[0]));
+  // Detect a contiguous run -> "a through b"
+  let contiguous = true;
+  for (let i = 1; i < values.length; i++) {
+    if (values[i] !== values[i - 1] + 1) { contiguous = false; break; }
+  }
+  if (contiguous) return `${fmt(values[0])} through ${fmt(values[values.length - 1])}`;
+  return values.map(fmt).join(", ");
+}
+
+function describe(parsed) {
+  const min = parsed.min.values, hour = parsed.hour.values;
+  const everyMin = min.length === 60, everyHour = hour.length === 24;
+
+  // --- Time-of-day phrase ---
+  let timePhrase;
+  if (everyMin && everyHour) {
+    timePhrase = "Every minute";
+  } else if (everyHour && !everyMin) {
+    if (min.length === 1) timePhrase = `At minute ${min[0]} of every hour`;
+    else timePhrase = `At minute ${describeList(min, FIELDS[0])} of every hour`;
+  } else if (!everyHour && everyMin) {
+    timePhrase = `Every minute past hour ${describeList(hour, FIELDS[1])}`;
+  } else if (min.length === 1 && hour.length === 1) {
+    timePhrase = `At ${pad2(hour[0])}:${pad2(min[0])}`;
+  } else {
+    timePhrase = `At minute ${describeList(min, FIELDS[0])} past hour ${describeList(hour, FIELDS[1])}`;
+  }
+
+  const segs = [timePhrase];
+
+  // --- Day-of-month ---
+  if (parsed.domRestricted) {
+    segs.push(`on day-of-month ${describeList(parsed.dom.values, FIELDS[2])}`);
+  }
+
+  // --- Month ---
+  if (parsed.month.values.length !== 12) {
+    segs.push(`in ${describeList(parsed.month.values, FIELDS[3], MONTH_FULL)}`);
+  }
+
+  // --- Day-of-week ---
+  if (parsed.dowRestricted) {
+    const conj = parsed.domRestricted ? "and on" : "on";
+    const d = describeList(parsed.dow.values, FIELDS[4], DOW_FULL);
+    segs.push(`${conj} ${d === "every" ? "every day-of-week" :
+      (parsed.dow.values.length === 1 ? d : (d.includes("through") ? d : d))}`);
+  }
+
+  return segs.join(" ") + ".";
+}
+
+/* ---------------------------------------------------------------------
+   NEXT RUN COMPUTATION
+   Standard cron OR-semantics for dom/dow when both are restricted.
+   --------------------------------------------------------------------- */
+function matchesDate(date, parsed) {
+  if (!parsed.min.values.includes(date.getMinutes())) return false;
+  if (!parsed.hour.values.includes(date.getHours())) return false;
+  if (!parsed.month.values.includes(date.getMonth() + 1)) return false;
+
+  const domOK = parsed.dom.values.includes(date.getDate());
+  const dowOK = parsed.dow.values.includes(date.getDay());
+
+  if (parsed.domRestricted && parsed.dowRestricted) {
+    // OR semantics: either matches.
+    return domOK || dowOK;
+  }
+  if (parsed.domRestricted) return domOK;
+  if (parsed.dowRestricted) return dowOK;
+  return true; // both wildcard
+}
+
+function nextRuns(parsed, count) {
+  const runs = [];
+  // Start from the next whole minute (cron has minute resolution).
+  let d = new Date();
+  d.setSeconds(0, 0);
+  d.setMinutes(d.getMinutes() + 1);
+
+  // Cap iterations so a never-matching expression can't hang the page.
+  // 5 years of minutes is plenty for any valid 5-field cron.
+  const maxIter = 366 * 5 * 24 * 60;
+  let iter = 0;
+  while (runs.length < count && iter < maxIter) {
+    if (matchesDate(d, parsed)) runs.push(new Date(d));
+    d.setMinutes(d.getMinutes() + 1);
+    iter++;
+  }
+  return runs;
+}
+
+function relativeTime(date) {
+  const diff = date.getTime() - Date.now();
+  const mins = Math.round(diff / 60000);
+  if (mins < 1) return "in <1 min";
+  if (mins < 60) return `in ${mins} min`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `in ${hrs}h ${mins % 60}m`;
+  const days = Math.floor(hrs / 24);
+  return `in ${days}d ${hrs % 24}h`;
+}
+
+function formatDate(date) {
+  const days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  return `${days[date.getDay()]} ${date.getFullYear()}-${pad2(date.getMonth()+1)}-${pad2(date.getDate())} `
+       + `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+}
+
+/* =====================================================================
+   VISUAL BUILDER UI
+   Each field has a mode: every | step | specific | range.
+   The builder generates a cron token; changing it rebuilds the raw string.
+   ===================================================================== */
+const fieldsEl = document.getElementById("fields");
+const builderState = {}; // key -> DOM refs
+
+function optionLabel(field, v) {
+  if (field.key === "month") return `${v} (${MONTH_NAMES[v - 1]})`;
+  if (field.key === "dow")   return `${v} (${DOW_NAMES[v]})`;
+  return String(v);
+}
+
+// Build the DOM controls for every field once.
+function buildFieldUI() {
+  FIELDS.forEach((field) => {
+    const wrap = document.createElement("div");
+    wrap.className = "field";
+
+    const name = `mode-${field.key}`;
+    // Options HTML for specific multi-select.
+    let opts = "";
+    for (let v = field.min; v <= field.max; v++) {
+      opts += `<option value="${v}">${optionLabel(field, v)}</option>`;
+    }
+    // Range selects.
+    let rangeOpts = "";
+    for (let v = field.min; v <= field.max; v++) {
+      rangeOpts += `<option value="${v}">${optionLabel(field, v)}</option>`;
+    }
+
+    wrap.innerHTML = `
+      <h3>${field.label}</h3>
+      <p class="hint">${field.hint}</p>
+      <div class="mode-row">
+        <label><input type="radio" name="${name}" value="every" checked> Every</label>
+        <label><input type="radio" name="${name}" value="step"> Every N
+          <input type="number" class="step-n" min="1" max="${field.max}" value="1" disabled>
+        </label>
+        <label><input type="radio" name="${name}" value="range"> Range</label>
+        <div class="inline sub">
+          <select class="range-lo" disabled>${rangeOpts}</select>
+          <span>to</span>
+          <select class="range-hi" disabled>${rangeOpts}</select>
+        </div>
+        <label><input type="radio" name="${name}" value="specific"> Specific</label>
+        <select class="specific" multiple disabled>${opts}</select>
+      </div>
+    `;
+    fieldsEl.appendChild(wrap);
+
+    // Default range hi to max so it's a valid range.
+    wrap.querySelector(".range-hi").value = field.max;
+
+    builderState[field.key] = {
+      wrap,
+      radios: wrap.querySelectorAll(`input[name="${name}"]`),
+      stepN: wrap.querySelector(".step-n"),
+      rangeLo: wrap.querySelector(".range-lo"),
+      rangeHi: wrap.querySelector(".range-hi"),
+      specific: wrap.querySelector(".specific"),
+    };
+
+    // Wire up change events -> rebuild from builder.
+    wrap.addEventListener("change", () => { syncEnabledStates(field.key); buildFromUI(); });
+    wrap.addEventListener("input", () => { buildFromUI(); });
+  });
+}
+
+// Enable/disable inputs depending on the chosen mode.
+function syncEnabledStates(key) {
+  const s = builderState[key];
+  const mode = [...s.radios].find(r => r.checked).value;
+  s.stepN.disabled    = mode !== "step";
+  s.rangeLo.disabled  = mode !== "range";
+  s.rangeHi.disabled  = mode !== "range";
+  s.specific.disabled = mode !== "specific";
+}
+
+// Produce a single cron token from a field's UI state.
+function tokenFromUI(field) {
+  const s = builderState[field.key];
+  const mode = [...s.radios].find(r => r.checked).value;
+  if (mode === "every") return "*";
+  if (mode === "step") {
+    const n = Math.max(1, parseInt(s.stepN.value, 10) || 1);
+    return `*/${n}`;
+  }
+  if (mode === "range") {
+    return `${s.rangeLo.value}-${s.rangeHi.value}`;
+  }
+  if (mode === "specific") {
+    const sel = [...s.specific.selectedOptions].map(o => o.value);
+    return sel.length ? sel.join(",") : "*"; // empty selection -> every
+  }
+  return "*";
+}
+
+// Build the raw cron string from the visual builder and refresh.
+function buildFromUI() {
+  if (suppressBuilderEvents) return;
+  const tokens = FIELDS.map(f => tokenFromUI(f));
+  rawEl.value = tokens.join(" ");
+  refresh(true); // came from builder; don't reflect back into builder
+}
+
+/* ---------------------------------------------------------------------
+   Reflect a parsed expression back INTO the visual builder controls.
+   Chooses the best-matching mode for each field's raw token.
+   --------------------------------------------------------------------- */
+let suppressBuilderEvents = false;
+
+function setRadio(radios, value) {
+  radios.forEach(r => { r.checked = (r.value === value); });
+}
+
+function reflectToUI(parsed) {
+  suppressBuilderEvents = true;
+  FIELDS.forEach((field) => {
+    const s = builderState[field.key];
+    const raw = parsed[field.key].raw;
+
+    if (raw === "*") {
+      setRadio(s.radios, "every");
+    } else if (/^\*\/\d+$/.test(raw)) {
+      setRadio(s.radios, "step");
+      s.stepN.value = raw.split("/")[1];
+    } else if (/^(\d+)-(\d+)$/.test(raw) && NAME_MAPS[field.key] === undefined) {
+      // numeric simple range
+      setRadio(s.radios, "range");
+      const [lo, hi] = raw.split("-");
+      s.rangeLo.value = lo; s.rangeHi.value = hi;
+    } else {
+      // Fall back to specific selection using resolved values.
+      setRadio(s.radios, "specific");
+      const vals = new Set(parsed[field.key].values.map(String));
+      [...s.specific.options].forEach(o => { o.selected = vals.has(o.value); });
+    }
+    syncEnabledStates(field.key);
+  });
+  suppressBuilderEvents = false;
+}
+
+/* =====================================================================
+   GLUE: refresh everything from the raw text field.
+   --------------------------------------------------------------------- */
+const rawEl     = document.getElementById("raw");
+const statusEl  = document.getElementById("status");
+const englishEl = document.getElementById("english");
+const runsEl    = document.getElementById("runs");
+
+function refresh(fromBuilder) {
+  const text = rawEl.value;
+  let parsed;
+  try {
+    parsed = parseCron(text);
+  } catch (err) {
+    rawEl.classList.add("bad");
+    statusEl.className = "status bad";
+    statusEl.textContent = "✕ " + err.message;
+    englishEl.textContent = "";
+    runsEl.innerHTML = "";
+    return;
+  }
+
+  // Valid.
+  rawEl.classList.remove("bad");
+  statusEl.className = "status good";
+  statusEl.textContent = "✓ Valid expression";
+
+  englishEl.innerHTML = describe(parsed);
+
+  // Only push back into the builder when the change came from the raw box.
+  if (!fromBuilder) reflectToUI(parsed);
+
+  // Next runs.
+  const runs = nextRuns(parsed, 5);
+  runsEl.innerHTML = "";
+  if (!runs.length) {
+    const li = document.createElement("li");
+    li.textContent = "No upcoming runs found within 5 years.";
+    runsEl.appendChild(li);
+  } else {
+    runs.forEach(r => {
+      const li = document.createElement("li");
+      li.innerHTML = `${formatDate(r)} <span class="rel">(${relativeTime(r)})</span>`;
+      runsEl.appendChild(li);
+    });
+  }
+}
+
+/* ---------------------------------------------------------------------
+   Event wiring
+   --------------------------------------------------------------------- */
+rawEl.addEventListener("input", () => refresh(false));
+
+// Presets.
+document.getElementById("presets").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-cron]");
+  if (!btn) return;
+  rawEl.value = btn.getAttribute("data-cron");
+  refresh(false);
+});
+
+// Copy button with file:// clipboard fallback.
+const toast = document.getElementById("toast");
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add("show");
+  setTimeout(() => toast.classList.remove("show"), 1400);
+}
+document.getElementById("copyBtn").addEventListener("click", async () => {
+  const text = rawEl.value;
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      showToast("Copied!");
+      return;
+    }
+    throw new Error("no clipboard");
+  } catch (_) {
+    // Fallback: select the input and use execCommand (works on file://).
+    rawEl.focus();
+    rawEl.select();
+    let ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    showToast(ok ? "Copied!" : "Selected — press Ctrl/Cmd+C");
+  }
+});
+
+// Initialise.
+buildFieldUI();
+refresh(false);
+</script>
+  <footer class="site-footer" style="text-align:center;padding:24px 16px;margin-top:32px;color:#94a3b8;font-size:13px;line-height:1.5;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">&copy; 2025&ndash;2026 <a href="https://github.com/setnev" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:none">Steven Peterson</a></footer>
+</body>
+</html>
