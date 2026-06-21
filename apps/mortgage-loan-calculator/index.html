@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mortgage / Loan Calculator</title>
+<style>
+  /* ---------- Theme tokens ---------- */
+  :root {
+    --bg: #0f172a;
+    --panel: #1e293b;
+    --panel2: #273449;
+    --accent: #38bdf8;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --good: #34d399;
+    --warn: #fbbf24;
+    --bad: #f87171;
+    --radius: 14px;
+    --font: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 16px;
+    line-height: 1.5;
+  }
+
+  .wrap {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 20px 16px 60px;
+  }
+
+  header h1 {
+    margin: 0 0 4px;
+    font-size: 1.5rem;
+  }
+  header p {
+    margin: 0 0 20px;
+    color: var(--muted);
+  }
+
+  /* ---------- Layout ---------- */
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  @media (min-width: 880px) {
+    .grid { grid-template-columns: 360px 1fr; align-items: start; }
+  }
+
+  .panel {
+    background: var(--panel);
+    border-radius: var(--radius);
+    padding: 18px;
+    border: 1px solid #ffffff10;
+  }
+  .panel h2 {
+    margin: 0 0 14px;
+    font-size: 1.05rem;
+  }
+
+  /* ---------- Form controls ---------- */
+  label {
+    display: block;
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin: 12px 0 5px;
+  }
+  label:first-of-type { margin-top: 0; }
+
+  input[type="number"],
+  input[type="text"],
+  input[type="date"],
+  select {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--panel2);
+    border: 1px solid #ffffff14;
+    border-radius: 10px;
+    color: var(--text);
+    font-size: 0.95rem;
+    font-family: var(--font);
+  }
+  input:focus, select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  /* small inline rows (e.g. two fields side by side) */
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .seg {
+    display: inline-flex;
+    background: var(--panel2);
+    border-radius: 10px;
+    padding: 3px;
+    gap: 3px;
+  }
+  .seg button {
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    padding: 7px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-family: var(--font);
+  }
+  .seg button.active {
+    background: var(--accent);
+    color: #062536;
+    font-weight: 600;
+  }
+
+  fieldset {
+    border: 1px solid #ffffff14;
+    border-radius: 10px;
+    margin: 16px 0 0;
+    padding: 6px 12px 12px;
+  }
+  legend {
+    color: var(--accent);
+    font-size: 0.82rem;
+    padding: 0 6px;
+  }
+
+  .hint { font-size: 0.75rem; color: var(--muted); margin-top: 4px; }
+
+  /* ---------- Results ---------- */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .stat {
+    background: var(--panel2);
+    border-radius: 12px;
+    padding: 14px;
+  }
+  .stat .k { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+  .stat .v { font-size: 1.35rem; font-weight: 700; margin-top: 4px; }
+  .stat .v.accent { color: var(--accent); }
+  .stat .v.good { color: var(--good); }
+  .stat .v.warn { color: var(--warn); }
+  .stat .v.bad  { color: var(--bad); }
+  .stat .sub { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+
+  /* breakdown list */
+  .breakdown { margin-bottom: 18px; }
+  .breakdown .line {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px dashed #ffffff10;
+    font-size: 0.9rem;
+  }
+  .breakdown .line:last-child { border-bottom: none; }
+  .breakdown .line span:first-child { color: var(--muted); }
+  .breakdown .total { font-weight: 700; }
+  .breakdown .total span:first-child { color: var(--text); }
+
+  /* savings callout */
+  .callout {
+    background: #34d39915;
+    border: 1px solid #34d39940;
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 18px;
+    font-size: 0.9rem;
+  }
+  .callout strong { color: var(--good); }
+
+  /* ---------- Chart ---------- */
+  .chartwrap { margin-bottom: 18px; }
+  canvas { width: 100%; height: auto; display: block; border-radius: 12px; background: var(--panel2); }
+  .legend { display: flex; gap: 16px; font-size: 0.78rem; color: var(--muted); margin-top: 8px; }
+  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: middle; }
+
+  /* ---------- Table ---------- */
+  .tablebar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
+  .scroll {
+    max-height: 420px;
+    overflow: auto;
+    border-radius: 12px;
+    border: 1px solid #ffffff12;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  thead th {
+    position: sticky;
+    top: 0;
+    background: var(--panel2);
+    color: var(--muted);
+    text-align: right;
+    padding: 9px 12px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  thead th:first-child { text-align: left; }
+  tbody td { padding: 8px 12px; text-align: right; border-top: 1px solid #ffffff0a; white-space: nowrap; }
+  tbody td:first-child { text-align: left; color: var(--muted); }
+  tbody tr:hover { background: #ffffff08; }
+  .num-principal { color: var(--good); }
+  .num-interest  { color: var(--warn); }
+
+  .footnote { color: var(--muted); font-size: 0.78rem; margin-top: 22px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🏡 Mortgage / Loan Calculator</h1>
+    <p>Estimate payments, see the full amortization, and find out what extra payments save you. Everything runs locally.</p>
+  </header>
+
+  <div class="grid">
+    <!-- ============ INPUT PANEL ============ -->
+    <section class="panel" aria-label="Inputs">
+      <h2>Loan Details</h2>
+
+      <!-- How the loan principal is entered -->
+      <label>Loan basis</label>
+      <div class="seg" id="basisSeg" role="tablist">
+        <button type="button" data-basis="amount" class="active">Loan amount</button>
+        <button type="button" data-basis="home">Home price + down</button>
+      </div>
+
+      <!-- Direct loan amount -->
+      <div id="amountFields">
+        <label for="loanAmount">Loan amount</label>
+        <input type="number" id="loanAmount" value="300000" min="0" step="1000" />
+      </div>
+
+      <!-- Home price + down payment -->
+      <div id="homeFields" style="display:none">
+        <label for="homePrice">Home price</label>
+        <input type="number" id="homePrice" value="375000" min="0" step="1000" />
+
+        <label>Down payment</label>
+        <div class="seg" id="downSeg" style="margin-bottom:6px">
+          <button type="button" data-down="pct" class="active">%</button>
+          <button type="button" data-down="amt">Amount</button>
+        </div>
+        <input type="number" id="downValue" value="20" min="0" step="0.5" />
+        <div class="hint" id="downHint"></div>
+      </div>
+
+      <label for="rate">Annual interest rate (%)</label>
+      <input type="number" id="rate" value="6.5" min="0" step="0.01" />
+
+      <!-- Term: either years or months -->
+      <label>Term</label>
+      <div class="seg" id="termSeg" style="margin-bottom:6px">
+        <button type="button" data-term="years" class="active">Years</button>
+        <button type="button" data-term="months">Months</button>
+      </div>
+      <input type="number" id="termValue" value="30" min="1" step="1" />
+
+      <label for="startDate">Start date (optional)</label>
+      <input type="date" id="startDate" />
+
+      <label for="extra">Extra monthly payment (optional)</label>
+      <input type="number" id="extra" value="0" min="0" step="25" />
+
+      <!-- Mortgage extras -->
+      <fieldset>
+        <legend>Mortgage extras (optional)</legend>
+        <div class="row2">
+          <div>
+            <label for="tax">Property tax / yr</label>
+            <input type="number" id="tax" value="0" min="0" step="100" />
+          </div>
+          <div>
+            <label for="ins">Home insurance / yr</label>
+            <input type="number" id="ins" value="0" min="0" step="50" />
+          </div>
+        </div>
+        <div class="row2">
+          <div>
+            <label for="pmi">PMI / month</label>
+            <input type="number" id="pmi" value="0" min="0" step="10" />
+          </div>
+          <div>
+            <label for="hoa">HOA / month</label>
+            <input type="number" id="hoa" value="0" min="0" step="10" />
+          </div>
+        </div>
+      </fieldset>
+
+      <label for="currency">Currency prefix</label>
+      <input type="text" id="currency" value="$" maxlength="4" />
+    </section>
+
+    <!-- ============ RESULTS PANEL ============ -->
+    <section class="panel" aria-label="Results">
+      <h2>Results</h2>
+
+      <div class="stats">
+        <div class="stat">
+          <div class="k">Monthly P&amp;I</div>
+          <div class="v accent" id="rMonthlyPI">—</div>
+          <div class="sub">principal + interest</div>
+        </div>
+        <div class="stat">
+          <div class="k">Monthly total</div>
+          <div class="v" id="rMonthlyTotal">—</div>
+          <div class="sub">with extras</div>
+        </div>
+        <div class="stat">
+          <div class="k">Total interest</div>
+          <div class="v warn" id="rTotalInterest">—</div>
+          <div class="sub" id="rPayoff">—</div>
+        </div>
+        <div class="stat">
+          <div class="k">Total of payments</div>
+          <div class="v" id="rTotalPaid">—</div>
+          <div class="sub">principal + interest</div>
+        </div>
+      </div>
+
+      <!-- Monthly payment breakdown (P&I + extras) -->
+      <div class="breakdown panel" style="background:var(--panel2)">
+        <div class="line"><span>Principal &amp; interest</span><span id="bPI">—</span></div>
+        <div class="line"><span>Property tax</span><span id="bTax">—</span></div>
+        <div class="line"><span>Home insurance</span><span id="bIns">—</span></div>
+        <div class="line"><span>PMI</span><span id="bPmi">—</span></div>
+        <div class="line"><span>HOA</span><span id="bHoa">—</span></div>
+        <div class="line total"><span>Total monthly payment</span><span id="bTotal">—</span></div>
+      </div>
+
+      <!-- Extra-payment savings callout -->
+      <div class="callout" id="savings" style="display:none"></div>
+
+      <!-- Chart -->
+      <div class="chartwrap">
+        <canvas id="chart" width="800" height="240" aria-label="Principal vs interest over time"></canvas>
+        <div class="legend">
+          <span><i style="background:var(--good)"></i>Principal</span>
+          <span><i style="background:var(--warn)"></i>Interest</span>
+          <span><i style="background:var(--accent)"></i>Remaining balance</span>
+        </div>
+      </div>
+
+      <!-- Amortization schedule -->
+      <div class="tablebar">
+        <strong>Amortization schedule</strong>
+        <div class="seg" id="schedSeg">
+          <button type="button" data-sched="month" class="active">Monthly</button>
+          <button type="button" data-sched="year">Yearly</button>
+        </div>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th id="thFirst">#</th>
+              <th>Payment</th>
+              <th>Principal</th>
+              <th>Interest</th>
+              <th>Balance</th>
+            </tr>
+          </thead>
+          <tbody id="schedBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <p class="footnote">Estimates only — not financial advice. Runs entirely offline in your browser.</p>
+</div>
+
+<script>
+"use strict";
+
+/* =========================================================================
+   State: tracks the toggle choices that aren't plain input values.
+   ========================================================================= */
+const state = {
+  basis: "amount",   // "amount" | "home"
+  down: "pct",       // "pct" | "amt"
+  term: "years",     // "years" | "months"
+  sched: "month"     // "month" | "year"
+};
+
+/* Grab elements once. */
+const $ = (id) => document.getElementById(id);
+const els = {
+  loanAmount: $("loanAmount"), homePrice: $("homePrice"),
+  downValue: $("downValue"), downHint: $("downHint"),
+  rate: $("rate"), termValue: $("termValue"),
+  startDate: $("startDate"), extra: $("extra"),
+  tax: $("tax"), ins: $("ins"), pmi: $("pmi"), hoa: $("hoa"),
+  currency: $("currency"),
+  amountFields: $("amountFields"), homeFields: $("homeFields"),
+  // outputs
+  rMonthlyPI: $("rMonthlyPI"), rMonthlyTotal: $("rMonthlyTotal"),
+  rTotalInterest: $("rTotalInterest"), rPayoff: $("rPayoff"),
+  rTotalPaid: $("rTotalPaid"),
+  bPI: $("bPI"), bTax: $("bTax"), bIns: $("bIns"), bPmi: $("bPmi"),
+  bHoa: $("bHoa"), bTotal: $("bTotal"),
+  savings: $("savings"), schedBody: $("schedBody"),
+  thFirst: $("thFirst"), chart: $("chart")
+};
+
+/* =========================================================================
+   Helpers
+   ========================================================================= */
+
+// Read a numeric input safely (NaN/negatives -> 0).
+function num(el) {
+  const v = parseFloat(el.value);
+  return (isFinite(v) && v > 0) ? v : (v === 0 ? 0 : 0);
+}
+
+// Format a number as currency with thousands separators + 2 decimals.
+function money(n) {
+  const cur = els.currency.value || "$";
+  if (!isFinite(n)) n = 0;
+  const s = Math.abs(n).toLocaleString("en-US", {
+    minimumFractionDigits: 2, maximumFractionDigits: 2
+  });
+  return (n < 0 ? "-" : "") + cur + s;
+}
+
+// Turn a month index (0-based from start) into a readable label using start date.
+function monthLabel(index) {
+  const base = els.startDate.value ? new Date(els.startDate.value) : null;
+  if (!base || isNaN(base)) return "Month " + (index + 1);
+  const d = new Date(base.getFullYear(), base.getMonth() + index, 1);
+  return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+}
+
+// Convert a number of months into a "Xy Ym" human string.
+function durationStr(months) {
+  months = Math.round(months);
+  const y = Math.floor(months / 12);
+  const m = months % 12;
+  if (y && m) return y + "y " + m + "m";
+  if (y) return y + "y";
+  return m + "m";
+}
+
+/* =========================================================================
+   Core: derive the loan principal and term in months from current inputs.
+   ========================================================================= */
+function getPrincipal() {
+  if (state.basis === "amount") return num(els.loanAmount);
+  // home price + down payment
+  const price = num(els.homePrice);
+  const dv = num(els.downValue);
+  const down = state.down === "pct" ? price * (dv / 100) : dv;
+  return Math.max(0, price - down);
+}
+
+function getTermMonths() {
+  const t = num(els.termValue);
+  return state.term === "years" ? Math.round(t * 12) : Math.round(t);
+}
+
+/* =========================================================================
+   Amortization engine.
+   Builds the full monthly schedule given principal, rate, term, and extra.
+   Returns rows + summary totals. Handles r = 0 (interest-free) correctly.
+   ========================================================================= */
+function amortize(principal, annualRate, months, extra) {
+  const r = annualRate / 100 / 12;           // monthly rate
+  let basePayment;
+
+  if (months <= 0 || principal <= 0) {
+    return { rows: [], basePayment: 0, totalInterest: 0, totalPaid: 0, payoffMonths: 0 };
+  }
+
+  if (r === 0) {
+    // Interest-free: straight division.
+    basePayment = principal / months;
+  } else {
+    // Standard amortization formula:
+    // M = P*r*(1+r)^n / ((1+r)^n - 1)
+    const pow = Math.pow(1 + r, months);
+    basePayment = principal * r * pow / (pow - 1);
+  }
+
+  const rows = [];
+  let balance = principal;
+  let totalInterest = 0;
+  let totalPaid = 0;
+  let i = 0;
+  // Safety cap so a bad input can't loop forever.
+  const cap = months + 1200;
+
+  while (balance > 0.005 && i < cap) {
+    const interest = balance * r;
+    // Scheduled principal portion plus any extra payment.
+    let principalPart = basePayment - interest + extra;
+    if (principalPart > balance) principalPart = balance; // last payment trims to exact
+    const payment = principalPart + interest;
+    balance -= principalPart;
+
+    totalInterest += interest;
+    totalPaid += payment;
+
+    rows.push({
+      n: i + 1,
+      label: monthLabel(i),
+      payment: payment,
+      principal: principalPart,
+      interest: interest,
+      balance: Math.max(0, balance)
+    });
+    i++;
+  }
+
+  return {
+    rows,
+    basePayment,
+    totalInterest,
+    totalPaid,
+    payoffMonths: rows.length
+  };
+}
+
+/* =========================================================================
+   Render: aggregate monthly rows into yearly buckets for the table view.
+   ========================================================================= */
+function toYearly(rows) {
+  const years = [];
+  for (let i = 0; i < rows.length; i += 12) {
+    const chunk = rows.slice(i, i + 12);
+    const sum = (key) => chunk.reduce((a, x) => a + x[key], 0);
+    years.push({
+      n: "Year " + (Math.floor(i / 12) + 1),
+      label: "Year " + (Math.floor(i / 12) + 1),
+      payment: sum("payment"),
+      principal: sum("principal"),
+      interest: sum("interest"),
+      balance: chunk[chunk.length - 1].balance
+    });
+  }
+  return years;
+}
+
+/* =========================================================================
+   Chart: a simple hand-drawn-ish canvas of principal vs interest vs balance.
+   ========================================================================= */
+function drawChart(rows) {
+  const c = els.chart;
+  const ctx = c.getContext("2d");
+  // Scale canvas to its displayed width for crispness.
+  const cssW = c.clientWidth || 800;
+  const ratio = window.devicePixelRatio || 1;
+  c.width = cssW * ratio;
+  c.height = 240 * ratio;
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+
+  const W = cssW, H = 240, pad = 8;
+  ctx.clearRect(0, 0, W, H);
+  if (rows.length < 2) return;
+
+  // Cumulative principal & interest, plus balance line.
+  let cumP = 0, cumI = 0;
+  const pts = rows.map(rw => {
+    cumP += rw.principal; cumI += rw.interest;
+    return { p: cumP, i: cumI, bal: rw.balance };
+  });
+  const maxTotal = Math.max(...pts.map(x => x.p + x.i));
+  const maxBal = pts[0].bal + pts[0].p; // ~ original principal
+  const n = pts.length;
+
+  const x = (idx) => pad + (idx / (n - 1)) * (W - pad * 2);
+  const yT = (val) => H - pad - (val / maxTotal) * (H - pad * 2);
+  const yB = (val) => H - pad - (val / maxBal) * (H - pad * 2);
+
+  // Stacked area: interest on top of principal.
+  function area(getY, getVal, color) {
+    ctx.beginPath();
+    ctx.moveTo(x(0), H - pad);
+    for (let k = 0; k < n; k++) ctx.lineTo(x(k), getY(getVal(k)));
+    ctx.lineTo(x(n - 1), H - pad);
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+  }
+  // total (principal + interest) area in warn, then principal area in good on top
+  area(yT, (k) => pts[k].p + pts[k].i, "#fbbf2433");
+  area(yT, (k) => pts[k].p, "#34d39940");
+
+  // Remaining-balance line in accent.
+  ctx.beginPath();
+  for (let k = 0; k < n; k++) {
+    const px = x(k), py = yB(pts[k].bal);
+    k === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  }
+  ctx.strokeStyle = "#38bdf8";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
+/* =========================================================================
+   Main recalculation — runs live on any input change.
+   ========================================================================= */
+function recalc() {
+  const principal = getPrincipal();
+  const months = getTermMonths();
+  const rate = num(els.rate);
+  const extra = num(els.extra);
+
+  // Update down-payment hint when in home-price mode.
+  if (state.basis === "home") {
+    const price = num(els.homePrice);
+    const dv = num(els.downValue);
+    if (state.down === "pct") {
+      els.downHint.textContent = "Down payment: " + money(price * dv / 100) + " — loan " + money(principal);
+    } else {
+      const pct = price > 0 ? (dv / price * 100) : 0;
+      els.downHint.textContent = "Down payment: " + pct.toFixed(1) + "% — loan " + money(principal);
+    }
+  }
+
+  // Baseline (no extra) and with-extra schedules.
+  const base = amortize(principal, rate, months, 0);
+  const withExtra = amortize(principal, rate, months, extra);
+
+  // Monthly extras folded into the total payment.
+  const monthlyTax = num(els.tax) / 12;
+  const monthlyIns = num(els.ins) / 12;
+  const monthlyPmi = num(els.pmi);
+  const monthlyHoa = num(els.hoa);
+  const extrasTotal = monthlyTax + monthlyIns + monthlyPmi + monthlyHoa;
+
+  const pi = base.basePayment;
+  const monthlyTotal = pi + extrasTotal + extra;
+
+  // ---- Top stats ----
+  els.rMonthlyPI.textContent = money(pi);
+  els.rMonthlyTotal.textContent = money(monthlyTotal);
+  els.rTotalInterest.textContent = money(withExtra.totalInterest);
+  els.rTotalPaid.textContent = money(withExtra.totalPaid);
+  els.rPayoff.textContent = "Paid off in " + durationStr(withExtra.payoffMonths);
+
+  // ---- Breakdown list ----
+  els.bPI.textContent = money(pi);
+  els.bTax.textContent = money(monthlyTax);
+  els.bIns.textContent = money(monthlyIns);
+  els.bPmi.textContent = money(monthlyPmi);
+  els.bHoa.textContent = money(monthlyHoa);
+  els.bTotal.textContent = money(monthlyTotal);
+
+  // ---- Extra-payment savings ----
+  if (extra > 0 && base.rows.length) {
+    const intSaved = base.totalInterest - withExtra.totalInterest;
+    const monthsSaved = base.payoffMonths - withExtra.payoffMonths;
+    els.savings.style.display = "block";
+    els.savings.innerHTML =
+      "With an extra " + money(extra) + "/mo you save <strong>" + money(intSaved) +
+      "</strong> in interest and pay off <strong>" + durationStr(monthsSaved) +
+      "</strong> sooner (" + durationStr(withExtra.payoffMonths) +
+      " vs " + durationStr(base.payoffMonths) + ").";
+  } else {
+    els.savings.style.display = "none";
+  }
+
+  // ---- Schedule table ----
+  const display = state.sched === "year" ? toYearly(withExtra.rows) : withExtra.rows;
+  els.thFirst.textContent = state.sched === "year" ? "Year" : "#";
+
+  // Build rows as a single HTML string for speed.
+  let html = "";
+  for (const rw of display) {
+    const first = state.sched === "year" ? rw.label : (rw.n + " · " + rw.label);
+    html +=
+      "<tr><td>" + first + "</td>" +
+      "<td>" + money(rw.payment) + "</td>" +
+      "<td class='num-principal'>" + money(rw.principal) + "</td>" +
+      "<td class='num-interest'>" + money(rw.interest) + "</td>" +
+      "<td>" + money(rw.balance) + "</td></tr>";
+  }
+  els.schedBody.innerHTML = html || "<tr><td colspan='5' style='text-align:center;color:var(--muted)'>Enter valid loan details to see a schedule.</td></tr>";
+
+  // ---- Chart ----
+  drawChart(withExtra.rows);
+}
+
+/* =========================================================================
+   Wiring up the segmented toggles + live recalculation.
+   ========================================================================= */
+
+// Generic helper: make a .seg group update a state key + active class, then recalc.
+function wireSeg(containerId, attr, stateKey, onChange) {
+  const container = $(containerId);
+  container.addEventListener("click", (e) => {
+    const btn = e.target.closest("button");
+    if (!btn) return;
+    state[stateKey] = btn.getAttribute(attr);
+    [...container.children].forEach(b => b.classList.toggle("active", b === btn));
+    if (onChange) onChange();
+    recalc();
+  });
+}
+
+wireSeg("basisSeg", "data-basis", "basis", () => {
+  els.amountFields.style.display = state.basis === "amount" ? "block" : "none";
+  els.homeFields.style.display = state.basis === "home" ? "block" : "none";
+});
+wireSeg("downSeg", "data-down", "down", () => {
+  // Sensible default value when switching down-payment mode.
+  els.downValue.value = state.down === "pct" ? "20" : String(num(els.homePrice) * 0.2);
+  els.downValue.step = state.down === "pct" ? "0.5" : "1000";
+});
+wireSeg("termSeg", "data-term", "term", () => {
+  els.termValue.value = state.term === "years" ? "30" : "360";
+});
+wireSeg("schedSeg", "data-sched", "sched");
+
+// Recalculate live as the user types in any input.
+document.querySelectorAll("input").forEach(inp => {
+  inp.addEventListener("input", recalc);
+});
+
+// Redraw chart on resize (canvas is responsive).
+window.addEventListener("resize", recalc);
+
+// First render.
+recalc();
+</script>
+  <footer class="site-footer" style="text-align:center;padding:24px 16px;margin-top:32px;color:#94a3b8;font-size:13px;line-height:1.5;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">&copy; 2025&ndash;2026 <a href="https://github.com/setnev" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:none">Steven Peterson</a></footer>
+</body>
+</html>
