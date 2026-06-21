@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>UUID / Token Generator</title>
+<style>
+  /* ---------- Theme tokens ---------- */
+  :root {
+    --bg: #0f172a;
+    --panel: #1e293b;
+    --panel-2: #273449;
+    --accent: #38bdf8;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --good: #34d399;
+    --radius: 14px;
+    --gap: 14px;
+    /* System font stack — no external fonts loaded */
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.5;
+  }
+
+  .wrap {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 24px 16px 64px;
+  }
+
+  header h1 {
+    margin: 0 0 4px;
+    font-size: 1.6rem;
+    letter-spacing: -0.02em;
+  }
+  header p {
+    margin: 0 0 20px;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+
+  /* ---------- Tabs ---------- */
+  .tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+  }
+  .tab {
+    flex: 1 1 auto;
+    min-width: 120px;
+    background: var(--panel);
+    color: var(--muted);
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active {
+    background: var(--panel-2);
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  /* ---------- Panels ---------- */
+  .panel {
+    background: var(--panel);
+    border-radius: var(--radius);
+    padding: 18px;
+    margin-bottom: var(--gap);
+  }
+  .panel h2 {
+    margin: 0 0 14px;
+    font-size: 1.05rem;
+  }
+
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--gap);
+    align-items: flex-end;
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1 1 160px;
+  }
+  label.lbl {
+    font-size: 0.8rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  select, input[type="text"], input[type="number"] {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid #33405a;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 0.95rem;
+    font-family: var(--sans);
+    width: 100%;
+  }
+  input[type="text"].mono { font-family: var(--mono); }
+  select:focus, input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  /* ---------- Checkboxes / toggles ---------- */
+  .toggles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 18px;
+    margin-top: 14px;
+  }
+  .toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .toggle input { accent-color: var(--accent); width: 16px; height: 16px; }
+
+  /* ---------- Buttons ---------- */
+  .btns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 16px;
+  }
+  button.act {
+    background: var(--accent);
+    color: #05202e;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 18px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: filter 0.15s, transform 0.05s;
+  }
+  button.act:active { transform: translateY(1px); }
+  button.act:hover { filter: brightness(1.08); }
+  button.ghost {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid #33405a;
+  }
+  button.ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ---------- Output ---------- */
+  .out {
+    margin-top: 16px;
+    background: #0b1220;
+    border: 1px solid #243049;
+    border-radius: 12px;
+    padding: 12px;
+  }
+  .out-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 360px;
+    overflow: auto;
+  }
+  .out-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 4px;
+    border-bottom: 1px solid #1b2436;
+  }
+  .out-item:last-child { border-bottom: none; }
+  .out-val {
+    font-family: var(--mono);
+    font-size: 0.9rem;
+    color: var(--text);
+    word-break: break-all;
+    flex: 1;
+  }
+  .copy-btn {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid #33405a;
+    border-radius: 8px;
+    padding: 4px 10px;
+    font-size: 0.78rem;
+    cursor: pointer;
+    flex: 0 0 auto;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.done { color: var(--good); border-color: var(--good); }
+
+  /* ---------- Info / entropy ---------- */
+  .meta {
+    margin-top: 12px;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .meta strong { color: var(--good); font-family: var(--mono); }
+  .entropy-bar {
+    height: 8px;
+    background: #0b1220;
+    border-radius: 6px;
+    overflow: hidden;
+    margin-top: 6px;
+    border: 1px solid #243049;
+  }
+  .entropy-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--good));
+    width: 0%;
+    transition: width 0.25s;
+  }
+
+  .hidden { display: none; }
+
+  .hint { font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
+
+  footer {
+    margin-top: 28px;
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .toast {
+    position: fixed;
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--good);
+    color: #05281c;
+    padding: 10px 18px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .toast.show { opacity: 1; }
+
+  @media (max-width: 520px) {
+    .field { flex: 1 1 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🔑 UUID / Token Generator</h1>
+    <p>Cryptographically secure identifiers &amp; random tokens — 100% offline, in your browser.</p>
+  </header>
+
+  <!-- Tab switcher -->
+  <div class="tabs" role="tablist">
+    <button class="tab active" data-tab="uuid" role="tab">UUID</button>
+    <button class="tab" data-tab="token" role="tab">Random Token</button>
+  </div>
+
+  <!-- ============ UUID PANEL ============ -->
+  <section id="tab-uuid" class="panel">
+    <h2>UUID Generator</h2>
+    <div class="row">
+      <div class="field">
+        <label class="lbl" for="uuidType">Version</label>
+        <select id="uuidType">
+          <option value="v4">UUID v4 (random)</option>
+          <option value="v7">UUID v7 (time-ordered)</option>
+          <option value="nil">NIL UUID (all zeros)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="lbl" for="uuidCount">How many (1–1000)</label>
+        <input type="number" id="uuidCount" min="1" max="1000" value="5" />
+      </div>
+    </div>
+
+    <div class="toggles">
+      <label class="toggle"><input type="checkbox" id="uuidUpper" /> Uppercase</label>
+      <label class="toggle"><input type="checkbox" id="uuidHyphens" checked /> Hyphens</label>
+      <label class="toggle"><input type="checkbox" id="uuidQuote" /> Quote-wrap</label>
+      <label class="toggle"><input type="checkbox" id="uuidComma" /> Comma separated (copy/download)</label>
+    </div>
+
+    <div class="btns">
+      <button class="act" id="uuidGen">Generate</button>
+      <button class="ghost" id="uuidCopyAll">Copy all</button>
+      <button class="ghost" id="uuidDownload">Download .txt</button>
+    </div>
+
+    <div class="out">
+      <ul class="out-list" id="uuidOut"></ul>
+    </div>
+  </section>
+
+  <!-- ============ TOKEN PANEL ============ -->
+  <section id="tab-token" class="panel hidden">
+    <h2>Random Token Generator</h2>
+    <div class="row">
+      <div class="field">
+        <label class="lbl" for="tokenSet">Character set</label>
+        <select id="tokenSet">
+          <option value="hex">Hex (0-9 a-f)</option>
+          <option value="base62" selected>Base62 (alphanumeric)</option>
+          <option value="urlsafe">URL-safe (A-Z a-z 0-9 - _)</option>
+          <option value="custom">Custom alphabet…</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="lbl" for="tokenLen">Length (1–512)</label>
+        <input type="number" id="tokenLen" min="1" max="512" value="32" />
+      </div>
+      <div class="field">
+        <label class="lbl" for="tokenCount">How many (1–1000)</label>
+        <input type="number" id="tokenCount" min="1" max="1000" value="5" />
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:12px;">
+      <div class="field" id="customWrap">
+        <label class="lbl" for="tokenCustom">Custom alphabet</label>
+        <input type="text" id="tokenCustom" class="mono" placeholder="e.g. ABCDEF1234567890" />
+        <div class="hint">Duplicate characters are removed automatically.</div>
+      </div>
+    </div>
+
+    <div class="toggles">
+      <label class="toggle"><input type="checkbox" id="tokenUpper" /> Uppercase</label>
+      <label class="toggle"><input type="checkbox" id="tokenQuote" /> Quote-wrap</label>
+      <label class="toggle"><input type="checkbox" id="tokenComma" /> Comma separated (copy/download)</label>
+    </div>
+
+    <div class="meta" id="tokenEntropy"></div>
+    <div class="entropy-bar"><div class="entropy-fill" id="tokenEntropyBar"></div></div>
+
+    <div class="btns">
+      <button class="act" id="tokenGen">Generate</button>
+      <button class="ghost" id="tokenCopyAll">Copy all</button>
+      <button class="ghost" id="tokenDownload">Download .txt</button>
+    </div>
+
+    <div class="out">
+      <ul class="out-list" id="tokenOut"></ul>
+    </div>
+  </section>
+
+  <footer>
+    No network. No tracking. Everything runs locally via <code>crypto.getRandomValues</code>.
+  </footer>
+</div>
+
+<div class="toast" id="toast">Copied!</div>
+
+<script>
+/* =====================================================================
+   UUID / Token Generator
+   ---------------------------------------------------------------------
+   SECURITY NOTE: Every random byte used to build a UUID or token comes
+   from crypto.getRandomValues (the Web Crypto CSPRNG). We deliberately
+   NEVER use Math.random() for any security-relevant value because
+   Math.random is NOT cryptographically secure and is predictable.
+   ===================================================================== */
+
+"use strict";
+
+/* ---------- Small DOM helper ---------- */
+const $ = (id) => document.getElementById(id);
+
+/* ---------- Toast feedback ---------- */
+let toastTimer = null;
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 1400);
+}
+
+/* ---------- Clipboard (with fallback for file:// where async clipboard
+   may be blocked) ---------- */
+async function copyText(text) {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (e) { /* fall through to legacy method */ }
+  // Legacy fallback using a hidden textarea + execCommand.
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch (e) {
+    return false;
+  }
+}
+
+/* ---------- Download a string as a .txt file ---------- */
+function downloadTxt(filename, text) {
+  const blob = new Blob([text], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  // Release the object URL after a short delay.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/* =====================================================================
+   UUID GENERATION
+   ===================================================================== */
+
+/* Convert a Uint8Array (16 bytes) into the canonical hyphenated UUID
+   string: 8-4-4-4-12 hex digits. */
+function bytesToUuid(bytes) {
+  const hex = [];
+  for (let i = 0; i < bytes.length; i++) {
+    hex.push((bytes[i] + 0x100).toString(16).slice(1)); // zero-padded byte
+  }
+  return (
+    hex[0] + hex[1] + hex[2] + hex[3] + "-" +
+    hex[4] + hex[5] + "-" +
+    hex[6] + hex[7] + "-" +
+    hex[8] + hex[9] + "-" +
+    hex[10] + hex[11] + hex[12] + hex[13] + hex[14] + hex[15]
+  );
+}
+
+/* UUID v4 — 122 random bits with fixed version (4) and variant (10xx) bits.
+   All randomness is sourced from the CSPRNG. */
+function uuidV4() {
+  const b = new Uint8Array(16);
+  crypto.getRandomValues(b); // cryptographically secure
+  // Set version: high nibble of byte 6 must be 0100 (4).
+  b[6] = (b[6] & 0x0f) | 0x40;
+  // Set variant: top two bits of byte 8 must be 10.
+  b[8] = (b[8] & 0x3f) | 0x80;
+  return bytesToUuid(b);
+}
+
+/* UUID v7 — time-ordered. Layout (RFC 9562):
+   - bytes 0..5  : 48-bit big-endian Unix timestamp in milliseconds
+   - byte 6 high : version (0111 = 7), low nibble random
+   - bytes 6..7  : 12 random bits (rand_a)
+   - byte 8      : variant (10) + random
+   - bytes 8..15 : remaining random bits (rand_b)
+   All non-timestamp bits come from the CSPRNG. */
+function uuidV7() {
+  const b = new Uint8Array(16);
+  crypto.getRandomValues(b); // fill everything with secure randomness first
+
+  const ts = Date.now(); // milliseconds since epoch (fits in 48 bits)
+  // Write 48-bit timestamp big-endian into bytes 0..5.
+  b[0] = (ts / 0x10000000000) & 0xff; // >>40
+  b[1] = (ts / 0x100000000) & 0xff;   // >>32
+  b[2] = (ts / 0x1000000) & 0xff;     // >>24
+  b[3] = (ts / 0x10000) & 0xff;       // >>16
+  b[4] = (ts / 0x100) & 0xff;         // >>8
+  b[5] = ts & 0xff;
+
+  // Version 7 in the high nibble of byte 6, keep low nibble random.
+  b[6] = (b[6] & 0x0f) | 0x70;
+  // Variant 10xx in the top two bits of byte 8, keep the rest random.
+  b[8] = (b[8] & 0x3f) | 0x80;
+  return bytesToUuid(b);
+}
+
+const NIL_UUID = "00000000-0000-0000-0000-000000000000";
+
+/* Apply UUID display toggles. */
+function formatUuid(uuid, opts) {
+  let s = uuid;
+  if (!opts.hyphens) s = s.replace(/-/g, "");
+  if (opts.upper) s = s.toUpperCase();
+  if (opts.quote) s = '"' + s + '"';
+  return s;
+}
+
+function generateUuids() {
+  const type = $("uuidType").value;
+  let count = parseInt($("uuidCount").value, 10);
+  if (isNaN(count) || count < 1) count = 1;
+  if (count > 1000) count = 1000;
+  $("uuidCount").value = count;
+
+  const opts = {
+    upper: $("uuidUpper").checked,
+    hyphens: $("uuidHyphens").checked,
+    quote: $("uuidQuote").checked,
+  };
+
+  const results = [];
+  for (let i = 0; i < count; i++) {
+    let raw;
+    if (type === "v4") raw = uuidV4();
+    else if (type === "v7") raw = uuidV7();
+    else raw = NIL_UUID;
+    results.push(formatUuid(raw, opts));
+  }
+  lastUuidResults = results;
+  renderList($("uuidOut"), results);
+}
+
+/* =====================================================================
+   RANDOM TOKEN GENERATION
+   ===================================================================== */
+
+const CHARSETS = {
+  hex: "0123456789abcdef",
+  base62: "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
+  urlsafe: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_",
+};
+
+/* Resolve the active alphabet, removing duplicate chars. */
+function getAlphabet() {
+  const set = $("tokenSet").value;
+  let alpha;
+  if (set === "custom") {
+    alpha = $("tokenCustom").value || "";
+  } else {
+    alpha = CHARSETS[set];
+  }
+  // Remove duplicate characters (important for unbiased selection + entropy).
+  return Array.from(new Set(Array.from(alpha))).join("");
+}
+
+/* Generate one token of given length from an alphabet, using rejection
+   sampling over crypto.getRandomValues to avoid modulo bias.
+   No Math.random anywhere — these are security values. */
+function randomToken(length, alphabet) {
+  const n = alphabet.length;
+  if (n === 0) return "";
+  const out = [];
+  // Largest multiple of n that fits in a byte; values >= this are rejected
+  // so that each character is chosen with uniform probability.
+  const maxFair = Math.floor(256 / n) * n;
+  // Pull random bytes in batches for efficiency.
+  const batch = new Uint8Array(Math.max(length * 2, 16));
+  while (out.length < length) {
+    crypto.getRandomValues(batch); // CSPRNG
+    for (let i = 0; i < batch.length && out.length < length; i++) {
+      const v = batch[i];
+      if (v < maxFair) {
+        out.push(alphabet[v % n]);
+      }
+      // else: reject this byte to keep the distribution uniform.
+    }
+  }
+  return out.join("");
+}
+
+/* Entropy (in bits) ≈ length * log2(alphabet size). */
+function entropyBits(length, alphaSize) {
+  if (alphaSize <= 1 || length <= 0) return 0;
+  return length * Math.log2(alphaSize);
+}
+
+function updateEntropy() {
+  const len = clampInt($("tokenLen").value, 1, 512);
+  const alpha = getAlphabet();
+  const bits = entropyBits(len, alpha.length);
+  const el = $("tokenEntropy");
+  if (alpha.length === 0) {
+    el.innerHTML = "Alphabet is empty — enter a custom alphabet.";
+    $("tokenEntropyBar").style.width = "0%";
+    return;
+  }
+  let strength = "weak";
+  if (bits >= 256) strength = "excellent";
+  else if (bits >= 128) strength = "strong";
+  else if (bits >= 80) strength = "good";
+  else if (bits >= 64) strength = "fair";
+  el.innerHTML =
+    "Alphabet size: <strong>" + alpha.length + "</strong> &nbsp;·&nbsp; " +
+    "Entropy: <strong>~" + bits.toFixed(1) + " bits</strong> &nbsp;·&nbsp; " +
+    "Strength: <strong>" + strength + "</strong>";
+  // Bar maxes out visually at 256 bits.
+  const pct = Math.min(100, (bits / 256) * 100);
+  $("tokenEntropyBar").style.width = pct + "%";
+}
+
+function clampInt(val, min, max) {
+  let n = parseInt(val, 10);
+  if (isNaN(n)) n = min;
+  if (n < min) n = min;
+  if (n > max) n = max;
+  return n;
+}
+
+/* Apply token display toggles. */
+function formatToken(tok, opts) {
+  let s = tok;
+  if (opts.upper) s = s.toUpperCase();
+  if (opts.quote) s = '"' + s + '"';
+  return s;
+}
+
+function generateTokens() {
+  const len = clampInt($("tokenLen").value, 1, 512);
+  $("tokenLen").value = len;
+  let count = clampInt($("tokenCount").value, 1, 1000);
+  $("tokenCount").value = count;
+
+  const alpha = getAlphabet();
+  if (alpha.length === 0) {
+    toast("Alphabet is empty");
+    return;
+  }
+
+  const opts = {
+    upper: $("tokenUpper").checked,
+    quote: $("tokenQuote").checked,
+  };
+
+  const results = [];
+  for (let i = 0; i < count; i++) {
+    results.push(formatToken(randomToken(len, alpha), opts));
+  }
+  lastTokenResults = results;
+  renderList($("tokenOut"), results);
+}
+
+/* =====================================================================
+   SHARED RENDER / COPY / DOWNLOAD
+   ===================================================================== */
+
+let lastUuidResults = [];
+let lastTokenResults = [];
+
+/* Render a list of values with per-item Copy buttons. */
+function renderList(ul, items) {
+  ul.innerHTML = "";
+  const frag = document.createDocumentFragment();
+  items.forEach((val) => {
+    const li = document.createElement("li");
+    li.className = "out-item";
+
+    const span = document.createElement("span");
+    span.className = "out-val";
+    span.textContent = val;
+
+    const btn = document.createElement("button");
+    btn.className = "copy-btn";
+    btn.textContent = "Copy";
+    btn.addEventListener("click", async () => {
+      const ok = await copyText(val);
+      if (ok) {
+        btn.textContent = "Copied";
+        btn.classList.add("done");
+        setTimeout(() => {
+          btn.textContent = "Copy";
+          btn.classList.remove("done");
+        }, 1200);
+      }
+    });
+
+    li.appendChild(span);
+    li.appendChild(btn);
+    frag.appendChild(li);
+  });
+  ul.appendChild(frag);
+}
+
+/* Join results according to the comma/newline toggle. */
+function joinResults(results, commaSep) {
+  return commaSep ? results.join(", ") : results.join("\n");
+}
+
+/* ---------- Wire up copy-all / download per tab ---------- */
+async function copyAll(results, commaSep) {
+  if (!results.length) { toast("Nothing to copy"); return; }
+  const ok = await copyText(joinResults(results, commaSep));
+  toast(ok ? "Copied " + results.length + " item(s)" : "Copy failed");
+}
+
+function download(results, commaSep, name) {
+  if (!results.length) { toast("Nothing to download"); return; }
+  downloadTxt(name, joinResults(results, commaSep));
+}
+
+/* =====================================================================
+   EVENT WIRING
+   ===================================================================== */
+
+/* Tab switching */
+document.querySelectorAll(".tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+    tab.classList.add("active");
+    const which = tab.dataset.tab;
+    $("tab-uuid").classList.toggle("hidden", which !== "uuid");
+    $("tab-token").classList.toggle("hidden", which !== "token");
+  });
+});
+
+/* UUID controls */
+$("uuidGen").addEventListener("click", generateUuids);
+$("uuidCopyAll").addEventListener("click", () =>
+  copyAll(lastUuidResults, $("uuidComma").checked));
+$("uuidDownload").addEventListener("click", () =>
+  download(lastUuidResults, $("uuidComma").checked, "uuids.txt"));
+
+/* Token controls */
+$("tokenGen").addEventListener("click", generateTokens);
+$("tokenCopyAll").addEventListener("click", () =>
+  copyAll(lastTokenResults, $("tokenComma").checked));
+$("tokenDownload").addEventListener("click", () =>
+  download(lastTokenResults, $("tokenComma").checked, "tokens.txt"));
+
+/* Show/hide custom alphabet field + live entropy updates */
+function refreshTokenUi() {
+  const isCustom = $("tokenSet").value === "custom";
+  $("customWrap").style.display = isCustom ? "flex" : "none";
+  updateEntropy();
+}
+$("tokenSet").addEventListener("change", refreshTokenUi);
+$("tokenLen").addEventListener("input", updateEntropy);
+$("tokenCustom").addEventListener("input", updateEntropy);
+
+/* ---------- Initial state ---------- */
+refreshTokenUi();
+generateUuids();
+generateTokens();
+</script>
+  <footer class="site-footer" style="text-align:center;padding:24px 16px;margin-top:32px;color:#94a3b8;font-size:13px;line-height:1.5;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">&copy; 2025&ndash;2026 <a href="https://github.com/setnev" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:none">Steven Peterson</a></footer>
+</body>
+</html>
