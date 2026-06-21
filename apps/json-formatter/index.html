@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JSON Formatter & Validator</title>
+  <style>
+    /* ===========================================================
+       All styles live here — no external stylesheets or fonts.
+       Works fully offline via file://.
+       =========================================================== */
+    :root {
+      color-scheme: dark;
+      --bg: #0f172a;          /* page background */
+      --panel: #1e293b;       /* main panels */
+      --panel-2: #273449;     /* secondary / inputs */
+      --accent: #38bdf8;      /* primary accent */
+      --text: #e2e8f0;        /* main text */
+      --muted: #94a3b8;       /* secondary text */
+      --good: #34d399;        /* valid / success */
+      --bad: #f87171;         /* invalid / error */
+      --border: #334155;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      padding: 1.25rem;
+      line-height: 1.5;
+    }
+
+    header { max-width: 1200px; margin: 0 auto 1rem; }
+    h1 {
+      margin: 0 0 0.2rem;
+      font-size: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .sub { margin: 0; color: var(--muted); font-size: 0.9rem; }
+
+    /* Layout: two panels side by side, stacking on mobile */
+    .grid {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    @media (max-width: 820px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    .panel {
+      background: var(--panel);
+      border-radius: 16px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .panel h2 {
+      margin: 0 0 0.6rem;
+      font-size: 0.95rem;
+      color: var(--muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* Text areas / code surfaces */
+    textarea, .output-box {
+      width: 100%;
+      flex: 1;
+      min-height: 320px;
+      resize: vertical;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font-size: 0.9rem;
+      line-height: 1.45;
+      padding: 0.8rem;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--text);
+      tab-size: 2;
+      white-space: pre;
+      overflow: auto;
+    }
+    textarea { outline: none; }
+    textarea:focus { border-color: var(--accent); }
+    .output-box { margin: 0; }
+
+    /* Controls / buttons */
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+      margin-bottom: 0.75rem;
+    }
+    button {
+      cursor: pointer;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      padding: 0.5rem 0.85rem;
+      background: var(--panel-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      transition: transform 0.05s ease, background 0.15s ease, border-color 0.15s ease;
+    }
+    button:hover { border-color: var(--accent); }
+    button:active { transform: scale(0.97); }
+    button.primary {
+      background: var(--accent);
+      color: #06283d;
+      border-color: var(--accent);
+    }
+    button.primary:hover { opacity: 0.92; }
+
+    select {
+      font-size: 0.85rem;
+      padding: 0.45rem 0.5rem;
+      border-radius: 10px;
+      background: var(--panel-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .indent-group {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-left: auto;
+    }
+
+    /* Status / validity indicator */
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      padding: 0.45rem 0.7rem;
+      border-radius: 10px;
+      margin-bottom: 0.75rem;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      min-height: 2.1rem;
+    }
+    .status.good { color: var(--good); border-color: rgba(52, 211, 153, 0.4); }
+    .status.bad  { color: var(--bad);  border-color: rgba(248, 113, 113, 0.4); }
+    .status .dot {
+      width: 0.6rem; height: 0.6rem; border-radius: 50%;
+      background: var(--muted);
+    }
+    .status.good .dot { background: var(--good); }
+    .status.bad  .dot { background: var(--bad); }
+
+    /* Error detail snippet */
+    .error-detail {
+      display: none;
+      margin-bottom: 0.75rem;
+      padding: 0.7rem 0.8rem;
+      border-radius: 12px;
+      background: rgba(248, 113, 113, 0.08);
+      border: 1px solid rgba(248, 113, 113, 0.35);
+      font-size: 0.85rem;
+      color: var(--text);
+    }
+    .error-detail.show { display: block; }
+    .error-detail .where { color: var(--bad); font-weight: 600; margin-bottom: 0.4rem; }
+    .error-detail pre {
+      margin: 0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.82rem;
+      white-space: pre;
+      overflow-x: auto;
+      color: var(--muted);
+    }
+    .error-detail .caret { color: var(--bad); }
+
+    /* Stats row */
+    .stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+    .stat {
+      flex: 1 1 auto;
+      min-width: 90px;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.5rem 0.7rem;
+      text-align: center;
+    }
+    .stat .num { font-size: 1.05rem; font-weight: 700; color: var(--accent); }
+    .stat .lbl { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+
+    /* View toggle (Text / Tree) */
+    .view-toggle {
+      display: inline-flex;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .view-toggle button {
+      border: none;
+      border-radius: 0;
+      background: var(--panel-2);
+      padding: 0.45rem 0.8rem;
+    }
+    .view-toggle button.active {
+      background: var(--accent);
+      color: #06283d;
+    }
+    .view-toggle button:hover { border-color: transparent; }
+
+    /* Tree view */
+    .tree-box {
+      flex: 1;
+      min-height: 320px;
+      padding: 0.8rem;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      overflow: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.88rem;
+    }
+    .tree-box ul { list-style: none; margin: 0; padding-left: 1.1rem; }
+    .tree-box > ul { padding-left: 0; }
+    .tree-node { white-space: nowrap; }
+    .tree-row { display: inline; }
+    .toggle {
+      display: inline-block;
+      width: 1.1rem;
+      cursor: pointer;
+      color: var(--accent);
+      user-select: none;
+      text-align: center;
+    }
+    .toggle.leaf { cursor: default; color: transparent; }
+    .tree-key { color: var(--accent); }
+    .tree-colon { color: var(--muted); }
+    .t-string { color: var(--good); }
+    .t-number { color: #fbbf24; }
+    .t-boolean { color: #c084fc; }
+    .t-null { color: var(--muted); font-style: italic; }
+    .t-meta { color: var(--muted); }
+    .collapsed > ul { display: none; }
+    .collapsed > .tree-row .summary { display: inline; }
+    .summary { display: none; color: var(--muted); }
+
+    /* Toast for copy feedback */
+    .toast {
+      position: fixed;
+      bottom: 1.25rem;
+      left: 50%;
+      transform: translateX(-50%) translateY(2rem);
+      background: var(--good);
+      color: #06283d;
+      font-weight: 600;
+      padding: 0.6rem 1rem;
+      border-radius: 12px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    footer {
+      max-width: 1200px;
+      margin: 1.25rem auto 0;
+      color: var(--muted);
+      font-size: 0.8rem;
+      text-align: center;
+    }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🔧 JSON Formatter &amp; Validator</h1>
+    <p class="sub">Format, minify, validate, and explore JSON — 100% in your browser, fully offline.</p>
+  </header>
+
+  <div class="grid">
+    <!-- ===================== INPUT PANEL ===================== -->
+    <section class="panel">
+      <h2>Input</h2>
+      <div class="controls">
+        <button id="btnFormat" class="primary">Format</button>
+        <button id="btnMinify">Minify</button>
+        <button id="btnValidate">Validate</button>
+        <button id="btnSample">Load sample</button>
+        <button id="btnClear">Clear</button>
+        <div class="indent-group">
+          <label for="indent">Indent</label>
+          <select id="indent">
+            <option value="2">2 spaces</option>
+            <option value="4">4 spaces</option>
+            <option value="tab">Tab</option>
+          </select>
+        </div>
+      </div>
+      <textarea id="input" spellcheck="false" placeholder="Paste or type JSON here…"></textarea>
+    </section>
+
+    <!-- ===================== OUTPUT PANEL ===================== -->
+    <section class="panel">
+      <h2>Output</h2>
+
+      <!-- Validity indicator -->
+      <div id="status" class="status"><span class="dot"></span><span id="statusText">Ready</span></div>
+
+      <!-- Error detail snippet (shown only on parse errors) -->
+      <div id="errorDetail" class="error-detail">
+        <div class="where" id="errorWhere"></div>
+        <pre id="errorSnippet"></pre>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats">
+        <div class="stat"><div class="num" id="statBytes">0</div><div class="lbl">Bytes</div></div>
+        <div class="stat"><div class="num" id="statKeys">0</div><div class="lbl">Keys</div></div>
+        <div class="stat"><div class="num" id="statNodes">0</div><div class="lbl">Nodes</div></div>
+        <div class="stat"><div class="num" id="statDepth">0</div><div class="lbl">Depth</div></div>
+      </div>
+
+      <div class="controls">
+        <div class="view-toggle">
+          <button id="viewText" class="active">Text</button>
+          <button id="viewTree">Tree</button>
+        </div>
+        <button id="btnCopy" style="margin-left:auto;">Copy output</button>
+      </div>
+
+      <!-- Read-only text output -->
+      <textarea id="output" class="output-box" readonly spellcheck="false" placeholder="Formatted output appears here…"></textarea>
+
+      <!-- Collapsible tree output -->
+      <div id="tree" class="tree-box hidden" aria-label="JSON tree view"></div>
+    </section>
+  </div>
+
+  <footer>
+    Everything runs locally. Your data never leaves this page. Last input is remembered on this device only.
+  </footer>
+
+  <div id="toast" class="toast">Copied!</div>
+
+  <script>
+  /* ============================================================
+     JSON Formatter & Validator — vanilla JS, no dependencies.
+     ============================================================ */
+  (function () {
+    "use strict";
+
+    // ---- Element references -------------------------------------------------
+    const $ = (id) => document.getElementById(id);
+    const input = $("input");
+    const output = $("output");
+    const tree = $("tree");
+    const indentSel = $("indent");
+    const statusEl = $("status");
+    const statusText = $("statusText");
+    const errorDetail = $("errorDetail");
+    const errorWhere = $("errorWhere");
+    const errorSnippet = $("errorSnippet");
+    const toast = $("toast");
+
+    const STORAGE_KEY = "json-formatter:last-input";
+
+    // ---- Indent helper ------------------------------------------------------
+    // Returns the indent string the user selected (2 spaces, 4 spaces, or tab).
+    function getIndent() {
+      const v = indentSel.value;
+      if (v === "tab") return "\t";
+      return " ".repeat(parseInt(v, 10) || 2);
+    }
+
+    // ---- Status indicator ---------------------------------------------------
+    function setStatus(kind, message) {
+      statusEl.classList.remove("good", "bad");
+      if (kind === "good") statusEl.classList.add("good");
+      if (kind === "bad") statusEl.classList.add("bad");
+      statusText.textContent = message;
+    }
+
+    // ---- Error position parsing ---------------------------------------------
+    // Browsers report JSON.parse errors differently. We try to recover a
+    // character position, then compute the line/column and build a snippet.
+    function describeError(err, text) {
+      const msg = String(err && err.message ? err.message : err);
+      let pos = -1;
+
+      // V8 (Chrome/Edge/Node): "... at position 123" (sometimes with line/col)
+      let m = msg.match(/position\s+(\d+)/i);
+      if (m) pos = parseInt(m[1], 10);
+
+      // Firefox: "JSON.parse: ... at line 3 column 5 of the JSON data"
+      let line = null, col = null;
+      const lc = msg.match(/line\s+(\d+)\s+column\s+(\d+)/i);
+      if (lc) { line = parseInt(lc[1], 10); col = parseInt(lc[2], 10); }
+
+      // If we have a character position, derive line/column from it.
+      if (pos >= 0) {
+        line = 1; col = 1;
+        for (let i = 0; i < pos && i < text.length; i++) {
+          if (text[i] === "\n") { line++; col = 1; } else { col++; }
+        }
+      } else if (line != null && col != null) {
+        // Derive a char position from line/column for the snippet.
+        const lines = text.split("\n");
+        pos = 0;
+        for (let i = 0; i < line - 1 && i < lines.length; i++) pos += lines[i].length + 1;
+        pos += (col - 1);
+      }
+
+      return { message: msg, position: pos, line, column: col };
+    }
+
+    // Build a small text snippet around the error with a caret marker.
+    function buildSnippet(text, pos) {
+      if (pos < 0) return "";
+      const start = Math.max(0, pos - 30);
+      const end = Math.min(text.length, pos + 30);
+      let slice = text.slice(start, end).replace(/\t/g, " ");
+      // Caret points at the offending character relative to the slice.
+      const caretPad = pos - start;
+      const caretLine = " ".repeat(Math.max(0, caretPad)) + "^";
+      return slice + "\n" + caretLine;
+    }
+
+    function showError(err, text) {
+      const info = describeError(err, text);
+      setStatus("bad", "Invalid JSON");
+
+      let where = info.message;
+      if (info.line != null && info.column != null) {
+        where = "Error at line " + info.line + ", column " + info.column +
+                (info.position >= 0 ? " (char " + info.position + ")" : "") + ": " + info.message;
+      }
+      errorWhere.textContent = where;
+      errorSnippet.textContent = buildSnippet(text, info.position);
+      errorDetail.classList.add("show");
+    }
+
+    function clearError() {
+      errorDetail.classList.remove("show");
+      errorWhere.textContent = "";
+      errorSnippet.textContent = "";
+    }
+
+    // ---- Stats computation --------------------------------------------------
+    // Walk the parsed value to count keys (object members), total nodes,
+    // and maximum nesting depth.
+    function computeStats(value) {
+      let keys = 0, nodes = 0, maxDepth = 0;
+
+      function walk(v, depth) {
+        nodes++;
+        if (depth > maxDepth) maxDepth = depth;
+        if (Array.isArray(v)) {
+          for (const item of v) walk(item, depth + 1);
+        } else if (v !== null && typeof v === "object") {
+          for (const k in v) {
+            if (Object.prototype.hasOwnProperty.call(v, k)) {
+              keys++;
+              walk(v[k], depth + 1);
+            }
+          }
+        }
+      }
+      walk(value, 1);
+      return { keys, nodes, depth: maxDepth };
+    }
+
+    // Byte length of a string using UTF-8 (matches real file size).
+    function byteLength(str) {
+      // TextEncoder is browser-native and available offline.
+      if (typeof TextEncoder !== "undefined") {
+        return new TextEncoder().encode(str).length;
+      }
+      // Fallback: rough UTF-8 estimate.
+      return unescape(encodeURIComponent(str)).length;
+    }
+
+    function updateStats(value, outputText) {
+      const s = computeStats(value);
+      $("statBytes").textContent = byteLength(outputText).toLocaleString();
+      $("statKeys").textContent = s.keys.toLocaleString();
+      $("statNodes").textContent = s.nodes.toLocaleString();
+      $("statDepth").textContent = s.depth.toLocaleString();
+    }
+
+    function resetStats() {
+      $("statBytes").textContent = "0";
+      $("statKeys").textContent = "0";
+      $("statNodes").textContent = "0";
+      $("statDepth").textContent = "0";
+    }
+
+    // ---- Core parse ---------------------------------------------------------
+    // Parses the input. Returns the value on success, or null on failure
+    // (also drawing the error UI). `quiet` suppresses the "empty" warning.
+    function tryParse(quiet) {
+      const text = input.value;
+      if (!text.trim()) {
+        if (!quiet) setStatus("", "Nothing to parse — paste some JSON.");
+        clearError();
+        return { ok: false, empty: true };
+      }
+      try {
+        const value = JSON.parse(text);
+        clearError();
+        return { ok: true, value: value };
+      } catch (err) {
+        showError(err, text);
+        return { ok: false, error: err };
+      }
+    }
+
+    let lastValue = undefined;   // the most recently parsed valid value
+    let lastTextOutput = "";     // the current text shown in output
+
+    // ---- Actions ------------------------------------------------------------
+    function doFormat() {
+      const r = tryParse(false);
+      if (!r.ok) { output.value = ""; lastValue = undefined; resetStats(); refreshView(); return; }
+      lastValue = r.value;
+      lastTextOutput = JSON.stringify(r.value, null, getIndent());
+      output.value = lastTextOutput;
+      setStatus("good", "Valid JSON — formatted");
+      updateStats(r.value, lastTextOutput);
+      refreshView();
+    }
+
+    function doMinify() {
+      const r = tryParse(false);
+      if (!r.ok) { output.value = ""; lastValue = undefined; resetStats(); refreshView(); return; }
+      lastValue = r.value;
+      lastTextOutput = JSON.stringify(r.value);
+      output.value = lastTextOutput;
+      setStatus("good", "Valid JSON — minified");
+      updateStats(r.value, lastTextOutput);
+      refreshView();
+    }
+
+    function doValidate() {
+      const r = tryParse(false);
+      if (r.empty) { return; }
+      if (!r.ok) { lastValue = undefined; resetStats(); refreshView(); return; }
+      lastValue = r.value;
+      // Validation keeps whatever output already exists; if none, show formatted.
+      if (!output.value.trim()) {
+        lastTextOutput = JSON.stringify(r.value, null, getIndent());
+        output.value = lastTextOutput;
+      }
+      setStatus("good", "Valid JSON");
+      updateStats(r.value, output.value);
+      refreshView();
+    }
+
+    function doClear() {
+      input.value = "";
+      output.value = "";
+      lastValue = undefined;
+      lastTextOutput = "";
+      setStatus("", "Cleared");
+      clearError();
+      resetStats();
+      tree.innerHTML = "";
+      try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+    }
+
+    // ---- Copy to clipboard (with file:// fallback) --------------------------
+    function doCopy() {
+      const text = output.value;
+      if (!text) { showToast("Nothing to copy"); return; }
+
+      // Preferred: async Clipboard API (needs a secure context; often blocked on file://).
+      if (navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(
+          () => showToast("Copied!"),
+          () => fallbackCopy(text)
+        );
+      } else {
+        fallbackCopy(text);
+      }
+    }
+
+    // Fallback for file:// — select the output and use execCommand('copy').
+    function fallbackCopy(text) {
+      output.removeAttribute("readonly");
+      output.focus();
+      output.select();
+      let ok = false;
+      try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+      output.setAttribute("readonly", "readonly");
+      window.getSelection().removeAllRanges();
+      showToast(ok ? "Copied!" : "Press Ctrl/Cmd+C to copy");
+    }
+
+    let toastTimer = null;
+    function showToast(msg) {
+      toast.textContent = msg;
+      toast.classList.add("show");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove("show"), 1600);
+    }
+
+    // ---- Sample data --------------------------------------------------------
+    function loadSample() {
+      const sample = {
+        name: "Single-Page Apps",
+        version: "1.0.0",
+        offline: true,
+        tags: ["json", "formatter", "validator"],
+        stats: { apps: 3, stars: 128, ratings: [4.8, 5, 4.9] },
+        author: { name: "Coding Empire", url: "https://example.com", verified: true },
+        nested: { a: { b: { c: { d: "deep value" } } } },
+        nullable: null
+      };
+      input.value = JSON.stringify(sample, null, 2);
+      save();
+      doFormat();
+    }
+
+    // ---- View switching (Text / Tree) ---------------------------------------
+    let currentView = "text";
+
+    function setView(view) {
+      currentView = view;
+      $("viewText").classList.toggle("active", view === "text");
+      $("viewTree").classList.toggle("active", view === "tree");
+      output.classList.toggle("hidden", view !== "text");
+      tree.classList.toggle("hidden", view !== "tree");
+      refreshView();
+    }
+
+    // Re-render the tree if it's the active view and we have a value.
+    function refreshView() {
+      if (currentView === "tree") {
+        if (lastValue !== undefined) {
+          renderTree(lastValue);
+        } else {
+          tree.innerHTML = '<span class="t-meta">No valid JSON to display. Format or validate first.</span>';
+        }
+      }
+    }
+
+    // ---- Tree renderer ------------------------------------------------------
+    // Builds a collapsible tree using nested <ul>. Each branch has a toggle
+    // that hides/shows its children. Robust against deep / large structures.
+    function renderTree(value) {
+      tree.innerHTML = "";
+      const root = document.createElement("ul");
+      root.appendChild(buildNode(null, value, true));
+      tree.appendChild(root);
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    // Renders a single primitive value with a type class for coloring.
+    function primitiveSpan(v) {
+      const span = document.createElement("span");
+      if (v === null) { span.className = "t-null"; span.textContent = "null"; }
+      else if (typeof v === "string") { span.className = "t-string"; span.textContent = JSON.stringify(v); }
+      else if (typeof v === "number") { span.className = "t-number"; span.textContent = String(v); }
+      else if (typeof v === "boolean") { span.className = "t-boolean"; span.textContent = String(v); }
+      else { span.className = "t-meta"; span.textContent = String(v); }
+      return span;
+    }
+
+    // Build one <li> tree node. `key` may be null (root), a string (object key),
+    // or a number (array index).
+    function buildNode(key, value, expanded) {
+      const li = document.createElement("li");
+      li.className = "tree-node";
+
+      const isArray = Array.isArray(value);
+      const isObject = value !== null && typeof value === "object";
+
+      const row = document.createElement("span");
+      row.className = "tree-row";
+
+      // Toggle handle (only branches are collapsible).
+      const toggle = document.createElement("span");
+      toggle.className = "toggle" + (isObject ? "" : " leaf");
+      toggle.textContent = isObject ? (expanded ? "▾" : "▸") : "•";
+      row.appendChild(toggle);
+
+      // Key label.
+      if (key !== null) {
+        const keySpan = document.createElement("span");
+        keySpan.className = "tree-key";
+        keySpan.textContent = (typeof key === "number") ? "[" + key + "]" : JSON.stringify(key);
+        row.appendChild(keySpan);
+        const colon = document.createElement("span");
+        colon.className = "tree-colon";
+        colon.textContent = ": ";
+        row.appendChild(colon);
+      }
+
+      if (isObject) {
+        const count = isArray ? value.length : Object.keys(value).length;
+        const open = isArray ? "[" : "{";
+        const close = isArray ? "]" : "}";
+
+        const meta = document.createElement("span");
+        meta.className = "t-meta";
+        meta.textContent = open;
+        row.appendChild(meta);
+
+        // Collapsed summary (count of children).
+        const summary = document.createElement("span");
+        summary.className = "summary";
+        summary.textContent = " " + count + (count === 1 ? " item " : " items ") + close;
+        row.appendChild(summary);
+
+        li.appendChild(row);
+
+        // Children list.
+        const ul = document.createElement("ul");
+        if (isArray) {
+          value.forEach((item, i) => ul.appendChild(buildNode(i, item, false)));
+        } else {
+          Object.keys(value).forEach((k) => ul.appendChild(buildNode(k, value[k], false)));
+        }
+        li.appendChild(ul);
+
+        // Closing bracket on its own (shown when expanded).
+        const closeSpan = document.createElement("span");
+        closeSpan.className = "t-meta";
+        closeSpan.textContent = close;
+        li.appendChild(closeSpan);
+
+        // Collapse/expand behavior.
+        if (!expanded) li.classList.add("collapsed");
+        const setIcon = () => { toggle.textContent = li.classList.contains("collapsed") ? "▸" : "▾"; };
+        const onToggle = () => { li.classList.toggle("collapsed"); setIcon(); };
+        toggle.addEventListener("click", onToggle);
+        row.addEventListener("click", (e) => {
+          // Click anywhere on the bracket row toggles, but not on selectable children.
+          if (e.target === toggle) return; // already handled
+          onToggle();
+        });
+        setIcon();
+      } else {
+        // Leaf value.
+        row.appendChild(primitiveSpan(value));
+        li.appendChild(row);
+      }
+
+      return li;
+    }
+
+    // ---- localStorage (remember last input) ---------------------------------
+    function save() {
+      try { localStorage.setItem(STORAGE_KEY, input.value); } catch (e) {}
+    }
+    function restore() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) input.value = saved;
+      } catch (e) {}
+    }
+
+    // ---- Wire up events -----------------------------------------------------
+    $("btnFormat").addEventListener("click", doFormat);
+    $("btnMinify").addEventListener("click", doMinify);
+    $("btnValidate").addEventListener("click", doValidate);
+    $("btnClear").addEventListener("click", doClear);
+    $("btnSample").addEventListener("click", loadSample);
+    $("btnCopy").addEventListener("click", doCopy);
+    $("viewText").addEventListener("click", () => setView("text"));
+    $("viewTree").addEventListener("click", () => setView("tree"));
+    indentSel.addEventListener("change", () => {
+      // Re-format on indent change if we already have valid output.
+      if (lastValue !== undefined && output.value.trim()) doFormat();
+    });
+
+    // Save input as the user types (debounced lightly).
+    let saveTimer = null;
+    input.addEventListener("input", () => {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(save, 300);
+    });
+
+    // Keyboard shortcut: Ctrl/Cmd+Enter formats.
+    input.addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        doFormat();
+      }
+    });
+
+    // ---- Init ---------------------------------------------------------------
+    restore();
+    if (input.value.trim()) {
+      // Validate restored input silently so stats/status reflect it.
+      doValidate();
+    }
+  })();
+  </script>
+  <footer class="site-footer" style="text-align:center;padding:24px 16px;margin-top:32px;color:#94a3b8;font-size:13px;line-height:1.5;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">&copy; 2025&ndash;2026 <a href="https://github.com/setnev" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:none">Steven Peterson</a></footer>
+</body>
+</html>
