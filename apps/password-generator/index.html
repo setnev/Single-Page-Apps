@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Password Generator</title>
+  <style>
+    /* All styles live here — no external stylesheets. */
+    :root {
+      color-scheme: light dark;
+      --bg: #0f1117;
+      --panel: #1a1d27;
+      --accent: #5b8cff;
+      --text: #e6e8ef;
+      --muted: #8b90a0;
+      --good: #36c275;
+      --weak: #e0556b;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      background: var(--bg);
+      color: var(--text);
+    }
+    main {
+      width: 100%;
+      max-width: 480px;
+      background: var(--panel);
+      border-radius: 16px;
+      padding: 1.75rem;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+    }
+    h1 { margin: 0 0 0.25rem; font-size: 1.4rem; }
+    .sub { margin: 0 0 1.5rem; color: var(--muted); font-size: 0.9rem; }
+
+    .output {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1.25rem;
+    }
+    #password {
+      flex: 1;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 1.05rem;
+      letter-spacing: 0.5px;
+      padding: 0.75rem 0.9rem;
+      border-radius: 10px;
+      border: 1px solid #2b2f3d;
+      background: #11131b;
+      color: var(--text);
+      word-break: break-all;
+    }
+    button {
+      cursor: pointer;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      transition: transform 0.05s ease, opacity 0.15s ease;
+    }
+    button:active { transform: scale(0.97); }
+    .icon-btn {
+      background: #2b2f3d;
+      color: var(--text);
+      padding: 0 0.9rem;
+    }
+    .generate-btn {
+      width: 100%;
+      background: var(--accent);
+      color: #fff;
+      padding: 0.8rem;
+      margin-top: 1.25rem;
+      font-size: 1rem;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 0.85rem 0;
+    }
+    label { font-size: 0.95rem; }
+    input[type="range"] { width: 55%; accent-color: var(--accent); }
+    input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: var(--accent); }
+    .len-value {
+      font-family: ui-monospace, monospace;
+      min-width: 2ch;
+      text-align: right;
+    }
+
+    .strength {
+      height: 6px;
+      border-radius: 4px;
+      background: #2b2f3d;
+      overflow: hidden;
+      margin-bottom: 0.5rem;
+    }
+    .strength > div {
+      height: 100%;
+      width: 0;
+      transition: width 0.2s ease, background 0.2s ease;
+    }
+    .strength-label { font-size: 0.8rem; color: var(--muted); min-height: 1.1em; }
+
+    .toast {
+      position: fixed;
+      bottom: 1.5rem;
+      left: 50%;
+      transform: translateX(-50%) translateY(150%);
+      background: var(--good);
+      color: #fff;
+      padding: 0.6rem 1.1rem;
+      border-radius: 999px;
+      font-size: 0.9rem;
+      transition: transform 0.25s ease;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>🔐 Password Generator</h1>
+    <p class="sub">Generated locally in your browser. Nothing is sent anywhere.</p>
+
+    <div class="strength"><div id="strengthBar"></div></div>
+    <div class="strength-label" id="strengthLabel"></div>
+
+    <div class="output">
+      <div id="password">&nbsp;</div>
+      <button class="icon-btn" id="copyBtn" title="Copy to clipboard">Copy</button>
+    </div>
+
+    <div class="row">
+      <label for="length">Length</label>
+      <input type="range" id="length" min="4" max="64" value="20" />
+      <span class="len-value" id="lengthValue">20</span>
+    </div>
+    <div class="row">
+      <label for="upper">Uppercase (A–Z)</label>
+      <input type="checkbox" id="upper" checked />
+    </div>
+    <div class="row">
+      <label for="lower">Lowercase (a–z)</label>
+      <input type="checkbox" id="lower" checked />
+    </div>
+    <div class="row">
+      <label for="numbers">Numbers (0–9)</label>
+      <input type="checkbox" id="numbers" checked />
+    </div>
+    <div class="row">
+      <label for="symbols">Symbols (!@#…)</label>
+      <input type="checkbox" id="symbols" checked />
+    </div>
+
+    <button class="generate-btn" id="generateBtn">Generate Password</button>
+  </main>
+
+  <div class="toast" id="toast">Copied to clipboard</div>
+
+  <script>
+    // All logic lives here — no external runtime dependencies.
+
+    const SETS = {
+      upper: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+      lower: "abcdefghijklmnopqrstuvwxyz",
+      numbers: "0123456789",
+      symbols: "!@#$%^&*()-_=+[]{};:,.<>?"
+    };
+
+    const els = {
+      password: document.getElementById("password"),
+      length: document.getElementById("length"),
+      lengthValue: document.getElementById("lengthValue"),
+      strengthBar: document.getElementById("strengthBar"),
+      strengthLabel: document.getElementById("strengthLabel"),
+      toast: document.getElementById("toast")
+    };
+
+    // Pick a random integer in [0, max) using the crypto API for real entropy.
+    function randomInt(max) {
+      const buf = new Uint32Array(1);
+      crypto.getRandomValues(buf);
+      return buf[0] % max;
+    }
+
+    function selectedSets() {
+      return ["upper", "lower", "numbers", "symbols"]
+        .filter(id => document.getElementById(id).checked)
+        .map(id => SETS[id]);
+    }
+
+    function generate() {
+      const sets = selectedSets();
+      if (sets.length === 0) {
+        els.password.textContent = "Select at least one set";
+        updateStrength("");
+        return;
+      }
+      const length = Number(els.length.value);
+      const pool = sets.join("");
+
+      const chars = [];
+      // Guarantee at least one character from each chosen set.
+      sets.forEach(set => chars.push(set[randomInt(set.length)]));
+      while (chars.length < length) chars.push(pool[randomInt(pool.length)]);
+
+      // Fisher–Yates shuffle so the guaranteed chars aren't always up front.
+      for (let i = chars.length - 1; i > 0; i--) {
+        const j = randomInt(i + 1);
+        [chars[i], chars[j]] = [chars[j], chars[i]];
+      }
+
+      const pw = chars.slice(0, length).join("");
+      els.password.textContent = pw;
+      updateStrength(pw);
+    }
+
+    function updateStrength(pw) {
+      const pool = selectedSets().join("").length || 1;
+      const bits = pw ? Math.round(pw.length * Math.log2(pool)) : 0;
+      let pct = Math.min(100, (bits / 128) * 100);
+      let label = "", color = "var(--weak)";
+      if (!pw) { pct = 0; label = ""; }
+      else if (bits < 40) { label = `Weak · ~${bits} bits`; color = "var(--weak)"; }
+      else if (bits < 80) { label = `Fair · ~${bits} bits`; color = "#e0a455"; }
+      else { label = `Strong · ~${bits} bits`; color = "var(--good)"; }
+      els.strengthBar.style.width = pct + "%";
+      els.strengthBar.style.background = color;
+      els.strengthLabel.textContent = label;
+    }
+
+    function showToast() {
+      els.toast.classList.add("show");
+      setTimeout(() => els.toast.classList.remove("show"), 1400);
+    }
+
+    els.length.addEventListener("input", () => {
+      els.lengthValue.textContent = els.length.value;
+      generate();
+    });
+    ["upper", "lower", "numbers", "symbols"].forEach(id =>
+      document.getElementById(id).addEventListener("change", generate)
+    );
+    document.getElementById("generateBtn").addEventListener("click", generate);
+    document.getElementById("copyBtn").addEventListener("click", async () => {
+      const pw = els.password.textContent;
+      if (!pw || pw === "Select at least one set") return;
+      try {
+        await navigator.clipboard.writeText(pw);
+        showToast();
+      } catch {
+        // Clipboard API may be blocked on file:// — fall back to selection.
+        const range = document.createRange();
+        range.selectNodeContents(els.password);
+        const sel = getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    });
+
+    generate();
+  </script>
+</body>
+</html>

@@ -1,0 +1,1291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Screen Time Quest</title>
+<style>
+  :root{
+    --bg:#0f172a; --card:#1e293b; --card2:#273449; --accent:#38bdf8;
+    --good:#34d399; --warn:#fbbf24; --bad:#f87171; --text:#e2e8f0;
+    --muted:#94a3b8; --kid1:#f472b6; --kid2:#60a5fa;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    -webkit-user-select:none;user-select:none}
+  body{padding:14px;max-width:640px;margin:0 auto;padding-bottom:60px}
+  h1{font-size:22px;margin:4px 0 12px;text-align:center}
+  h2{font-size:17px;margin:18px 0 8px}
+  .muted{color:var(--muted);font-size:13px}
+  .row{display:flex;gap:8px;flex-wrap:wrap}
+
+  /* Kid switcher — tile grid, wraps for any number of kids */
+  .kidtabs{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-bottom:12px}
+  .kidtab{padding:12px;border-radius:14px;text-align:center;
+    background:var(--card);border:3px solid transparent;font-size:16px;font-weight:700;cursor:pointer}
+  .kidtab.active{border-color:var(--accent)}
+  .kidtab .nm{display:block}
+  .kidtab .bal{display:block;font-size:13px;color:var(--muted);font-weight:500;margin-top:2px}
+
+  /* Balance card */
+  .balcard{background:linear-gradient(135deg,#1e293b,#334155);border-radius:18px;
+    padding:18px;text-align:center;margin-bottom:14px}
+  .bigmin{font-size:48px;font-weight:800;line-height:1;color:var(--good)}
+  .bigmin small{font-size:18px;color:var(--muted);font-weight:600}
+  .subline{margin-top:8px;font-size:13px;color:var(--muted)}
+  .redeembtn{margin-top:14px;width:100%;padding:16px;font-size:18px;font-weight:700;
+    border:none;border-radius:14px;background:var(--accent);color:#06283d;cursor:pointer}
+  .redeembtn:disabled{background:#334155;color:#64748b;cursor:not-allowed}
+
+  /* Bonus bar */
+  .bonus{background:var(--card);border-radius:14px;padding:12px;margin-bottom:14px}
+  .bonus .top{display:flex;justify-content:space-between;font-size:13px;margin-bottom:8px}
+  .track{height:12px;background:#334155;border-radius:8px;overflow:hidden}
+  .fill{height:100%;background:linear-gradient(90deg,var(--warn),var(--good));width:0%;
+    transition:width .3s}
+  .milestones{display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:var(--muted)}
+  .milestones span.hit{color:var(--good);font-weight:700}
+
+  /* Tasks */
+  .cat{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);
+    margin:16px 0 6px}
+  .tasktiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:10px}
+  .task{display:flex;flex-direction:column;gap:4px;background:var(--card);
+    border-radius:16px;padding:14px;cursor:pointer;min-height:108px;border:2px solid transparent;position:relative}
+  .task:active{background:var(--card2)}
+  .task .emoji{font-size:30px;line-height:1}
+  .task .info{flex:1;display:flex;flex-direction:column}
+  .task .tname{font-weight:600;font-size:14px;line-height:1.25}
+  .task .tmin{font-size:12px;color:var(--good);margin-top:6px}
+  .task .add{position:absolute;top:10px;right:12px;font-size:22px;color:var(--accent);font-weight:800}
+  .task.locked{opacity:.5}
+  .task.locked .add{color:var(--good)}
+  .badge{display:inline-block;margin-left:8px;font-size:10px;font-weight:700;text-transform:uppercase;
+    letter-spacing:.5px;background:var(--warn);color:#3a2a00;padding:2px 6px;border-radius:8px;vertical-align:middle}
+
+  /* Generic */
+  button.ghost{background:var(--card);color:var(--text);border:1px solid #334155;
+    border-radius:10px;padding:10px 14px;font-size:14px;cursor:pointer}
+  .toolbar{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
+
+  /* Modal */
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;
+    align-items:center;justify-content:center;padding:16px;z-index:50}
+  .overlay.show{display:flex}
+  .modal{background:var(--card);border-radius:18px;padding:18px;width:100%;
+    max-width:440px;max-height:88vh;overflow:auto}
+  .modal h3{margin:0 0 12px;font-size:19px}
+  .modal label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
+  .modal input,.modal select{width:100%;padding:12px;border-radius:10px;border:1px solid #334155;
+    background:var(--bg);color:var(--text);font-size:16px}
+  .modal .actions{display:flex;gap:8px;margin-top:16px}
+  .modal .actions button{flex:1;padding:14px;border:none;border-radius:12px;font-size:16px;
+    font-weight:700;cursor:pointer}
+  .btn-primary{background:var(--accent);color:#06283d}
+  .btn-cancel{background:#334155;color:var(--text)}
+  .btn-danger{background:var(--bad);color:#3a0a0a}
+
+  .blockgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}
+  .blockopt{padding:16px 6px;border-radius:12px;background:var(--bg);border:2px solid #334155;
+    text-align:center;font-size:18px;font-weight:700;cursor:pointer}
+  .blockopt:disabled{opacity:.35;cursor:not-allowed}
+  .blockopt.sel{border-color:var(--accent);background:#0b3a52}
+
+  /* Onboarding */
+  .obstep{display:flex;align-items:center;gap:14px;margin:6px 0 12px}
+  .obstep button{font-size:24px;font-weight:800;width:48px;height:48px;border-radius:12px;
+    background:var(--card2);color:var(--text);border:none;cursor:pointer}
+  .obstep .n{font-size:30px;font-weight:800;min-width:46px;text-align:center}
+  .obchoices{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 0}
+  .obchoice{background:var(--bg);border:2px solid #334155;border-radius:14px;padding:14px;
+    text-align:center;cursor:pointer;font-weight:700;font-size:14px}
+  .obchoice .muted{font-weight:400;display:block;margin-top:4px;font-size:12px}
+  .obchoice.sel{border-color:var(--accent);background:#0b3a52}
+
+  /* Edit task list rows */
+  .editrow{display:flex;align-items:center;gap:8px;background:var(--bg);border-radius:10px;
+    padding:8px 10px;margin-bottom:6px}
+  .editrow .info{flex:1;font-size:14px}
+  .editrow button{padding:8px 10px;font-size:13px}
+
+  .hist{font-size:13px;color:var(--muted);max-height:200px;overflow:auto}
+  .hist div{padding:5px 0;border-bottom:1px solid #283447}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+    background:var(--good);color:#06281b;padding:12px 20px;border-radius:30px;
+    font-weight:700;z-index:99;opacity:0;transition:opacity .3s;pointer-events:none}
+  .toast.show{opacity:1}
+  .footer{text-align:center;margin-top:24px}
+</style>
+</head>
+<body>
+  <h1>⭐ Screen Time Quest</h1>
+
+  <div class="kidtabs" id="kidtabs"></div>
+
+  <div class="balcard">
+    <div class="bigmin" id="balDisplay">0 <small>min banked</small></div>
+    <div class="subline" id="capLine"></div>
+    <button class="redeembtn" id="redeemBtn">Redeem screen time</button>
+  </div>
+
+  <div class="bonus">
+    <div class="top">
+      <span>🔥 Today's tasks: <b id="taskCount">0</b></span>
+      <span id="bonusEarned" class="muted">+0 bonus min today</span>
+    </div>
+    <div class="track"><div class="fill" id="bonusFill"></div></div>
+    <div class="milestones" id="milestones"></div>
+  </div>
+
+  <div id="taskList"></div>
+
+  <div class="toolbar">
+    <button class="ghost" id="historyBtn">📜 History</button>
+    <button class="ghost" id="parentBtn">🔒 Parent</button>
+  </div>
+
+  <div class="footer muted">Works fully offline · Your data stays on this device</div>
+
+  <!-- Onboarding (first launch) -->
+  <div class="overlay" id="onboardModal">
+    <div class="modal">
+      <h3>Welcome to Screen Time Quest 👋</h3>
+      <p class="muted">A quick 30-second setup. You can change all of this later under 🔒 Parent.</p>
+      <label>How many kids?</label>
+      <div class="obstep">
+        <button id="obMinus" aria-label="fewer">－</button>
+        <span class="n" id="obCountLabel">2</span>
+        <button id="obPlus" aria-label="more">＋</button>
+      </div>
+      <div id="obNames"></div>
+      <label style="margin-top:12px">Tasks to start with</label>
+      <div class="obchoices">
+        <div class="obchoice sel" id="obStarter">⭐ Starter pack<span class="muted">~24 ready-made chores &amp; bonuses</span></div>
+        <div class="obchoice" id="obScratch">✏️ From scratch<span class="muted">Add your own tasks</span></div>
+      </div>
+      <div class="actions">
+        <button class="btn-primary" id="obFinish">Start →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Redeem modal -->
+  <div class="overlay" id="redeemModal">
+    <div class="modal">
+      <h3>Redeem screen time</h3>
+      <p class="muted" id="redeemInfo"></p>
+      <div class="blockgrid" id="blockGrid"></div>
+      <p class="muted" id="redeemMsg"></p>
+      <div class="actions">
+        <button class="btn-cancel" onclick="closeModal('redeemModal')">Cancel</button>
+        <button class="btn-primary" id="confirmRedeem">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- History modal -->
+  <div class="overlay" id="historyModal">
+    <div class="modal">
+      <h3>History</h3>
+      <div class="hist" id="histList"></div>
+      <div class="actions">
+        <button class="btn-cancel" onclick="closeModal('historyModal')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PIN modal -->
+  <div class="overlay" id="pinModal">
+    <div class="modal">
+      <h3>Parent PIN</h3>
+      <p class="muted">Enter your 4-digit PIN to manage tasks &amp; settings.</p>
+      <input id="pinInput" type="tel" inputmode="numeric" maxlength="4" placeholder="••••" style="text-align:center;font-size:28px;letter-spacing:10px">
+      <p class="muted" id="pinMsg"></p>
+      <div class="actions">
+        <button class="btn-cancel" onclick="closeModal('pinModal')">Cancel</button>
+        <button class="btn-primary" id="pinSubmit">Unlock</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Parent panel -->
+  <div class="overlay" id="parentModal">
+    <div class="modal">
+      <h3>Parent controls</h3>
+
+      <h2 style="margin-top:4px">Adjust balance</h2>
+      <div class="row">
+        <select id="adjKid" style="flex:1"></select>
+        <input id="adjAmt" type="number" placeholder="+/- min" style="flex:1">
+      </div>
+      <button class="ghost" id="adjBtn" style="margin-top:8px;width:100%">Apply adjustment</button>
+
+      <h2>Penalty (misbehavior)</h2>
+      <p class="muted" style="margin:0 0 6px">Deduct banked minutes for misbehavior. It's logged in History with your reason.</p>
+      <div class="row">
+        <select id="penKid" style="flex:1"></select>
+        <input id="penAmt" type="number" min="1" placeholder="min to deduct" style="flex:1">
+      </div>
+      <input id="penReason" placeholder="Reason (e.g. wouldn't share)" style="margin-top:8px">
+      <button class="ghost" id="penBtn" style="margin-top:8px;width:100%;border-color:var(--bad);color:var(--bad)">Apply penalty</button>
+
+      <h2>Kids</h2>
+      <div id="nameEditors"></div>
+      <button class="ghost" id="addKidBtn" style="width:100%;margin-top:6px">＋ Add a kid</button>
+
+      <h2>Tasks</h2>
+      <div id="taskEditors"></div>
+      <button class="ghost" id="addTaskBtn" style="width:100%;margin-top:6px">＋ Add new task</button>
+
+      <h2>Parent verification (authenticator)</h2>
+      <label style="display:flex;align-items:center;gap:8px;color:var(--text)">
+        <input type="checkbox" id="verifyToggle" style="width:auto"> Require a parent code to complete each task
+      </label>
+      <div id="authList" style="margin-top:8px"></div>
+      <button class="ghost" id="addAuthBtn" style="width:100%;margin-top:6px">＋ Add a parent device</button>
+      <p class="muted" id="verifyHint"></p>
+
+      <h2>Settings</h2>
+      <label>Min. banked before redeeming (min)</label>
+      <input id="setThreshold" type="number">
+      <label>Redemption block size (min)</label>
+      <input id="setBlock" type="number">
+      <label>Daily redemption cap (min)</label>
+      <input id="setCap" type="number">
+      <label>Change parent PIN (4 digits, leave blank to keep)</label>
+      <input id="setPin" type="tel" inputmode="numeric" maxlength="4" placeholder="••••">
+
+      <div class="actions">
+        <button class="btn-cancel" onclick="closeModal('parentModal')">Done</button>
+        <button class="btn-primary" id="saveSettings">Save settings</button>
+      </div>
+      <div class="actions" style="margin-top:8px">
+        <button class="btn-danger" id="resetBtn">Reset everything</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add/Edit task modal -->
+  <div class="overlay" id="taskEditModal">
+    <div class="modal">
+      <h3 id="taskEditTitle">Add task</h3>
+      <label>Emoji</label>
+      <input id="teEmoji" maxlength="2" placeholder="🧹">
+      <label>Task name</label>
+      <input id="teName" placeholder="e.g. Make bed">
+      <label>Category</label>
+      <input id="teCat" placeholder="e.g. Quick Wins · ~1:1" list="catlist">
+      <datalist id="catlist"></datalist>
+      <div class="row">
+        <div style="flex:1"><label>Effort (mins it takes)</label>
+          <input id="teEffort" type="number" min="1" placeholder="3"></div>
+        <div style="flex:1"><label>Screen-time earned</label>
+          <input id="teEarn" type="number" min="1" placeholder="3"></div>
+      </div>
+      <p class="muted" id="teRatio" style="margin:6px 0 0"></p>
+      <label style="display:flex;align-items:center;gap:8px;color:var(--text);margin-top:12px">
+        <input type="checkbox" id="teOnce" style="width:auto"> ⭐ Bonus task — only 1 bonus task allowed per day
+      </label>
+      <div class="actions">
+        <button class="btn-cancel" onclick="closeModal('taskEditModal')">Cancel</button>
+        <button class="btn-primary" id="teSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Verify task modal (TOTP) -->
+  <div class="overlay" id="verifyModal">
+    <div class="modal">
+      <h3>Parent approval needed 🔒</h3>
+      <p class="muted">Task: <b id="verifyTask"></b></p>
+      <p class="muted">Enter the current 6-digit code from a parent's authenticator app.</p>
+      <input id="verifyCode" type="tel" inputmode="numeric" maxlength="6" placeholder="••••••" style="text-align:center;font-size:30px;letter-spacing:10px">
+      <p class="muted" id="verifyMsg"></p>
+      <div class="actions">
+        <button class="btn-cancel" onclick="closeModal('verifyModal')">Cancel</button>
+        <button class="btn-primary" id="verifySubmit">Approve</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Authenticator setup modal -->
+  <div class="overlay" id="authModal">
+    <div class="modal">
+      <h3 id="authTitle">Set up authenticator</h3>
+      <p class="muted">Use any authenticator app (Google Authenticator, Authy, Microsoft Authenticator…). Scan the QR, or choose <b>Enter a setup key</b> and type the key. You can add the same code to more than one phone.</p>
+      <div style="text-align:center;margin:10px 0"><canvas id="authQr" style="background:#fff;border-radius:8px;max-width:100%"></canvas></div>
+      <label>Setup key (type this if you can't scan)</label>
+      <div id="authKey" style="font-family:monospace;font-size:17px;letter-spacing:2px;background:var(--bg);padding:12px;border-radius:10px;word-break:break-all"></div>
+      <label>Test it — type the current 6-digit code from your app</label>
+      <input id="authTest" type="tel" inputmode="numeric" maxlength="6" placeholder="••••••" style="text-align:center;font-size:24px;letter-spacing:8px">
+      <p class="muted" id="authTestMsg"></p>
+      <div class="actions">
+        <button class="btn-cancel" onclick="closeModal('authModal')">Done</button>
+        <button class="btn-primary" id="authTestBtn">Check code</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   Screen Time Quest — all logic is offline, saved in this
+   browser via localStorage. No internet needed.
+   ============================================================ */
+
+/* ---------- Pure logic (also unit-tested separately) ---------- */
+var STQ = {
+  // How many *bonus* minutes to award for completing N small tasks in a day.
+  // Rewards doing MANY tasks instead of one big one.
+  bonusMilestones: [
+    {count:3,  bonus:2},
+    {count:6,  bonus:5},
+    {count:10, bonus:10},
+    {count:15, bonus:15}
+  ],
+
+  // Local calendar date (YYYY-MM-DD). Uses local time, NOT UTC, so the daily
+  // cap / streak / bonus reset at the family's own midnight, not UTC midnight.
+  todayStr: function(d){ d = d || new Date();
+    var m=d.getMonth()+1, day=d.getDate();
+    return d.getFullYear()+'-'+(m<10?'0':'')+m+'-'+(day<10?'0':'')+day; },
+
+  // Reset a kid's per-day counters if the stored day is not today.
+  rollover: function(kid, today){
+    if(kid.day !== today){
+      kid.day = today;
+      kid.redeemedToday = 0;
+      kid.tasksToday = 0;
+      kid.bonusToday = 0;
+      kid.bonusUsedToday = false; // one once-a-day bonus task per day
+    }
+    return kid;
+  },
+
+  // Total bonus minutes earned for a given task count (cumulative).
+  bonusFor: function(count){
+    var total = 0;
+    for(var i=0;i<this.bonusMilestones.length;i++){
+      if(count >= this.bonusMilestones[i].count) total += this.bonusMilestones[i].bonus;
+    }
+    return total;
+  },
+
+  // Complete a task. task = {earn, once, id}. Small tasks earn ~1:1,
+  // big tasks are discounted (set in their 'earn' value). Once-a-day bonus
+  // tasks are limited to ONE per kid per day (kid.bonusUsedToday).
+  // Returns {ok, gained, bonusGained, reason}.
+  completeTask: function(kid, task){
+    if(task.once && kid.bonusUsedToday){
+      return {ok:false, reason:'Only one bonus task can be redeemed per day.'};
+    }
+    var earn = task.earn;
+    var before = this.bonusFor(kid.tasksToday);
+    kid.tasksToday += 1;
+    var after = this.bonusFor(kid.tasksToday);
+    var bonusGained = after - before;
+    var gained = earn + bonusGained;
+    kid.balance += gained;
+    kid.bonusToday += bonusGained;
+    if(task.once) kid.bonusUsedToday = true;
+    return {ok:true, gained:gained, bonusGained:bonusGained};
+  },
+
+  // Which redemption blocks are allowed right now.
+  // Rules: must have >= threshold banked; blocks are multiples of blockSize;
+  // can't redeem more than (dailyCap - redeemedToday); can't redeem more than banked.
+  allowedBlocks: function(kid, s){
+    var blocks = [];
+    if(kid.balance < s.threshold) return blocks; // gate
+    var capLeft = s.dailyCap - kid.redeemedToday;
+    var maxByBank = Math.floor(kid.balance / s.blockSize) * s.blockSize;
+    var maxRedeem = Math.min(capLeft, maxByBank);
+    for(var b = s.blockSize; b <= maxRedeem; b += s.blockSize){
+      blocks.push(b);
+    }
+    return blocks;
+  },
+
+  // Redeem a block. Returns {ok, reason}.
+  redeem: function(kid, s, block){
+    if(kid.balance < s.threshold) return {ok:false, reason:'Need at least '+s.threshold+' min banked first.'};
+    if(block % s.blockSize !== 0)  return {ok:false, reason:'Must be a multiple of '+s.blockSize+' min.'};
+    if(block > kid.balance)        return {ok:false, reason:'Not enough minutes banked.'};
+    if(kid.redeemedToday + block > s.dailyCap)
+      return {ok:false, reason:'Over the daily '+s.dailyCap+' min cap.'};
+    kid.balance -= block;
+    kid.redeemedToday += block;
+    return {ok:true};
+  }
+};
+
+/* ---------- TOTP (authenticator) logic — RFC 4648 + RFC 6238 ----------
+   Pure JS so it works fully offline as a single file. Tested against the
+   official RFC 6238 test vectors so codes match Google Authenticator,
+   Authy, Microsoft Authenticator, etc. */
+STQ.base32Encode = function(bytes){
+  var A='ABCDEFGHIJKLMNOPQRSTUVWXYZ234567', bits=0, val=0, out='';
+  for(var i=0;i<bytes.length;i++){ val=(val<<8)|bytes[i]; bits+=8;
+    while(bits>=5){ out+=A[(val>>>(bits-5))&31]; bits-=5; } }
+  if(bits>0) out+=A[(val<<(5-bits))&31];
+  return out;
+};
+STQ.base32Decode = function(s){
+  var A='ABCDEFGHIJKLMNOPQRSTUVWXYZ234567', bits=0, val=0, out=[];
+  s=String(s).toUpperCase().replace(/[^A-Z2-7]/g,'');
+  for(var i=0;i<s.length;i++){ var idx=A.indexOf(s[i]); if(idx<0) continue;
+    val=(val<<5)|idx; bits+=5;
+    if(bits>=8){ out.push((val>>>(bits-8))&0xff); bits-=8; } }
+  return out;
+};
+STQ.sha1 = function(bytes){
+  var msg=bytes.slice(); var ml=bytes.length*8;
+  msg.push(0x80); while(msg.length%64!==56) msg.push(0);
+  var hi=Math.floor(ml/0x100000000);
+  msg.push((hi>>>24)&255,(hi>>>16)&255,(hi>>>8)&255,hi&255);
+  msg.push((ml>>>24)&255,(ml>>>16)&255,(ml>>>8)&255,ml&255);
+  var h0=0x67452301,h1=0xEFCDAB89,h2=0x98BADCFE,h3=0x10325476,h4=0xC3D2E1F0;
+  for(var i=0;i<msg.length;i+=64){
+    var w=new Array(80);
+    for(var t=0;t<16;t++) w[t]=(msg[i+t*4]<<24)|(msg[i+t*4+1]<<16)|(msg[i+t*4+2]<<8)|msg[i+t*4+3];
+    for(var t=16;t<80;t++){ var v=w[t-3]^w[t-8]^w[t-14]^w[t-16]; w[t]=(v<<1)|(v>>>31); }
+    var a=h0,b=h1,c=h2,d=h3,e=h4;
+    for(var t=0;t<80;t++){
+      var f,k;
+      if(t<20){ f=(b&c)|((~b)&d); k=0x5A827999; }
+      else if(t<40){ f=b^c^d; k=0x6ED9EBA1; }
+      else if(t<60){ f=(b&c)|(b&d)|(c&d); k=0x8F1BBCDC; }
+      else { f=b^c^d; k=0xCA62C1D6; }
+      var tmp=(((a<<5)|(a>>>27))+f+e+k+w[t])&0xffffffff;
+      e=d; d=c; c=(b<<30)|(b>>>2); b=a; a=tmp;
+    }
+    h0=(h0+a)&0xffffffff; h1=(h1+b)&0xffffffff; h2=(h2+c)&0xffffffff; h3=(h3+d)&0xffffffff; h4=(h4+e)&0xffffffff;
+  }
+  function tb(h){ return [(h>>>24)&255,(h>>>16)&255,(h>>>8)&255,h&255]; }
+  return tb(h0).concat(tb(h1),tb(h2),tb(h3),tb(h4));
+};
+STQ.hmacSha1 = function(key, msg){
+  if(key.length>64) key=STQ.sha1(key);
+  key=key.slice(); while(key.length<64) key.push(0);
+  var ik=[], ok=[];
+  for(var i=0;i<64;i++){ ik.push(key[i]^0x36); ok.push(key[i]^0x5c); }
+  return STQ.sha1(ok.concat(STQ.sha1(ik.concat(msg))));
+};
+STQ.hotp = function(keyBytes, counter){
+  var cb=[0,0,0,0,0,0,0,0];
+  for(var i=7;i>=0;i--){ cb[i]=counter&0xff; counter=Math.floor(counter/256); }
+  var h=STQ.hmacSha1(keyBytes, cb);
+  var off=h[19]&0xf;
+  var bin=((h[off]&0x7f)<<24)|((h[off+1]&0xff)<<16)|((h[off+2]&0xff)<<8)|(h[off+3]&0xff);
+  var s=''+(bin%1000000); while(s.length<6) s='0'+s; return s;
+};
+STQ.totp = function(secretBase32, timeSec, step){
+  step=step||30;
+  return STQ.hotp(STQ.base32Decode(secretBase32), Math.floor(timeSec/step));
+};
+STQ.verifyTotp = function(secretBase32, code, timeSec, window){
+  window = (window==null)?1:window;
+  if(!/^\d{6}$/.test(String(code))) return false;
+  var key=STQ.base32Decode(secretBase32), counter=Math.floor(timeSec/30);
+  for(var w=-window; w<=window; w++){ if(STQ.hotp(key, counter+w)===String(code)) return true; }
+  return false;
+};
+
+/* expose for node testing */
+if (typeof module !== 'undefined' && module.exports) { module.exports = STQ; }
+</script>
+
+<script>
+/* ---------- Offline QR Code generator (byte mode) ----------
+   Self-contained so the authenticator QR works with no internet.
+   Validated by decode round-trip against an independent QR reader. */
+(function(global){
+'use strict';
+
+var ECC_PER_BLOCK = [
+ [-1,7,10,15,20,26,18,20,24,30,18,20,24,26,30,22,24,28,30,28,28,28,28,30,30,26,28,30,30,30,30,30,30,30,30,30,30,30,30,30,30],
+ [-1,10,16,26,18,24,16,18,22,22,26,30,22,22,24,24,28,28,26,26,26,26,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28],
+ [-1,13,22,18,26,18,24,18,22,20,24,28,26,24,20,30,24,28,28,26,30,28,30,30,30,30,28,30,30,30,30,30,30,30,30,30,30,30,30,30,30],
+ [-1,17,28,22,16,22,28,26,26,24,28,24,28,22,24,24,30,28,28,26,28,30,24,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30]
+];
+var NUM_EC_BLOCKS = [
+ [-1,1,1,1,1,1,2,2,2,2,4,4,4,4,4,6,6,6,6,7,8,8,9,9,10,12,12,12,13,14,15,16,17,18,19,19,20,21,22,24,25],
+ [-1,1,1,1,2,2,4,4,4,5,5,5,8,9,9,10,10,11,13,14,16,17,17,18,20,21,23,25,26,28,29,31,33,35,37,38,40,43,45,47,49],
+ [-1,1,1,2,2,4,4,6,6,8,8,8,10,12,16,12,17,16,18,21,20,23,23,25,27,29,34,34,35,38,40,43,45,48,51,53,56,59,62,65,68],
+ [-1,1,1,2,4,4,4,5,6,8,8,11,11,16,16,18,16,19,21,25,25,25,34,30,32,35,37,40,42,45,48,51,54,57,60,63,66,70,74,77,81]
+];
+var FMT = [1,0,3,2];
+function getNumRawDataModules(ver){
+  var result=(16*ver+128)*ver+64;
+  if(ver>=2){ var n=Math.floor(ver/7)+2; result-=(25*n-10)*n-55; if(ver>=7) result-=36; }
+  return result;
+}
+function getNumDataCodewords(ver,ecl){
+  return Math.floor(getNumRawDataModules(ver)/8) - ECC_PER_BLOCK[ecl][ver]*NUM_EC_BLOCKS[ecl][ver];
+}
+function getBit(x,i){ return ((x>>>i)&1)!==0; }
+function rsMul(x,y){ var z=0; for(var i=7;i>=0;i--){ z=(z<<1)^((z>>>7)*0x11D); z^=((y>>>i)&1)*x; } return z&0xFF; }
+function rsDivisor(deg){
+  var r=[]; for(var i=0;i<deg-1;i++) r.push(0); r.push(1);
+  var root=1;
+  for(var i=0;i<deg;i++){
+    for(var j=0;j<r.length;j++){ r[j]=rsMul(r[j],root); if(j+1<r.length) r[j]^=r[j+1]; }
+    root=rsMul(root,0x02);
+  }
+  return r;
+}
+function rsRemainder(data,div){
+  var r=div.map(function(){return 0;});
+  for(var d=0;d<data.length;d++){
+    var factor=data[d]^r.shift(); r.push(0);
+    for(var i=0;i<div.length;i++) r[i]^=rsMul(div[i],factor);
+  }
+  return r;
+}
+function QrCode(version,ecl,dataCodewords){
+  this.version=version; this.ecl=ecl; this.size=version*4+17; this.formatBits=FMT[ecl];
+  var n=this.size; this.modules=[]; this.isFunction=[];
+  for(var i=0;i<n;i++){ this.modules.push(new Array(n).fill(false)); this.isFunction.push(new Array(n).fill(false)); }
+  this.drawFunctionPatterns();
+  var all=this.addEccAndInterleave(dataCodewords);
+  this.drawCodewords(all);
+  var minP=Infinity, best=0;
+  for(var m=0;m<8;m++){ this.applyMask(m); this.drawFormatBits(m); var p=this.getPenaltyScore(); if(p<minP){minP=p;best=m;} this.applyMask(m); }
+  this.applyMask(best); this.drawFormatBits(best); this.mask=best;
+}
+QrCode.prototype.setF=function(x,y,d){ this.modules[y][x]=d; this.isFunction[y][x]=true; };
+QrCode.prototype.drawFunctionPatterns=function(){
+  var n=this.size,i,j;
+  for(i=0;i<n;i++){ this.setF(6,i,i%2===0); this.setF(i,6,i%2===0); }
+  this.drawFinder(3,3); this.drawFinder(n-4,3); this.drawFinder(3,n-4);
+  var pos=this.alignPositions(), c=pos.length;
+  for(i=0;i<c;i++) for(j=0;j<c;j++){
+    if(!((i===0&&j===0)||(i===0&&j===c-1)||(i===c-1&&j===0))) this.drawAlign(pos[i],pos[j]);
+  }
+  this.drawFormatBits(0); this.drawVersion();
+};
+QrCode.prototype.drawFinder=function(x,y){
+  for(var dy=-4;dy<=4;dy++) for(var dx=-4;dx<=4;dx++){
+    var d=Math.max(Math.abs(dx),Math.abs(dy)), xx=x+dx, yy=y+dy;
+    if(xx>=0&&xx<this.size&&yy>=0&&yy<this.size) this.setF(xx,yy, d!==2&&d!==4);
+  }
+};
+QrCode.prototype.drawAlign=function(x,y){
+  for(var dy=-2;dy<=2;dy++) for(var dx=-2;dx<=2;dx++) this.setF(x+dx,y+dy, Math.max(Math.abs(dx),Math.abs(dy))!==1);
+};
+QrCode.prototype.alignPositions=function(){
+  if(this.version===1) return [];
+  var num=Math.floor(this.version/7)+2;
+  var step=(this.version===32)?26:Math.ceil((this.version*4+4)/(num*2-2))*2;
+  var res=[6];
+  for(var pos=this.size-7; res.length<num; pos-=step) res.splice(1,0,pos);
+  return res;
+};
+QrCode.prototype.drawFormatBits=function(mask){
+  var data=(this.formatBits<<3)|mask, rem=data;
+  for(var i=0;i<10;i++) rem=(rem<<1)^((rem>>>9)*0x537);
+  var bits=((data<<10)|rem)^0x5412, n=this.size;
+  for(var i=0;i<=5;i++) this.setF(8,i,getBit(bits,i));
+  this.setF(8,7,getBit(bits,6)); this.setF(8,8,getBit(bits,7)); this.setF(7,8,getBit(bits,8));
+  for(var i=9;i<15;i++) this.setF(14-i,8,getBit(bits,i));
+  for(var i=0;i<8;i++) this.setF(n-1-i,8,getBit(bits,i));
+  for(var i=8;i<15;i++) this.setF(8,n-15+i,getBit(bits,i));
+  this.setF(8,n-8,true);
+};
+QrCode.prototype.drawVersion=function(){
+  if(this.version<7) return;
+  var rem=this.version;
+  for(var i=0;i<12;i++) rem=(rem<<1)^((rem>>>11)*0x1F25);
+  var bits=(this.version<<12)|rem, n=this.size;
+  for(var i=0;i<18;i++){ var b=getBit(bits,i), a=n-11+i%3, c=Math.floor(i/3); this.setF(a,c,b); this.setF(c,a,b); }
+};
+QrCode.prototype.addEccAndInterleave=function(data){
+  var ver=this.version, ecl=this.ecl;
+  var numBlocks=NUM_EC_BLOCKS[ecl][ver], blockEcc=ECC_PER_BLOCK[ecl][ver];
+  var rawCw=Math.floor(getNumRawDataModules(ver)/8);
+  var numShort=numBlocks - rawCw%numBlocks, shortLen=Math.floor(rawCw/numBlocks);
+  var blocks=[], div=rsDivisor(blockEcc), k=0;
+  for(var i=0;i<numBlocks;i++){
+    var datLen=shortLen-blockEcc+(i<numShort?0:1);
+    var dat=data.slice(k,k+datLen); k+=datLen;
+    var ecc=rsRemainder(dat,div);
+    if(i<numShort) dat.push(0);
+    blocks.push(dat.concat(ecc));
+  }
+  var result=[];
+  for(var i=0;i<blocks[0].length;i++) for(var j=0;j<blocks.length;j++){
+    if(i!==shortLen-blockEcc || j>=numShort) result.push(blocks[j][i]);
+  }
+  return result;
+};
+QrCode.prototype.drawCodewords=function(data){
+  var n=this.size, i=0;
+  for(var right=n-1; right>=1; right-=2){
+    if(right===6) right=5;
+    for(var vert=0;vert<n;vert++){
+      for(var jj=0;jj<2;jj++){
+        var x=right-jj, up=((right+1)&2)===0, y=up?(n-1-vert):vert;
+        if(!this.isFunction[y][x] && i<data.length*8){ this.modules[y][x]=getBit(data[i>>>3],7-(i&7)); i++; }
+      }
+    }
+  }
+};
+QrCode.prototype.applyMask=function(mask){
+  var n=this.size;
+  for(var y=0;y<n;y++) for(var x=0;x<n;x++){
+    if(this.isFunction[y][x]) continue;
+    var inv;
+    switch(mask){
+      case 0: inv=(x+y)%2===0; break;
+      case 1: inv=y%2===0; break;
+      case 2: inv=x%3===0; break;
+      case 3: inv=(x+y)%3===0; break;
+      case 4: inv=(Math.floor(x/3)+Math.floor(y/2))%2===0; break;
+      case 5: inv=(x*y)%2+(x*y)%3===0; break;
+      case 6: inv=((x*y)%2+(x*y)%3)%2===0; break;
+      case 7: inv=((x+y)%2+(x*y)%3)%2===0; break;
+    }
+    if(inv) this.modules[y][x]=!this.modules[y][x];
+  }
+};
+QrCode.prototype.getPenaltyScore=function(){
+  var n=this.size, m=this.modules, score=0, x, y;
+  for(y=0;y<n;y++){ var run=1; for(x=1;x<n;x++){ if(m[y][x]===m[y][x-1]) run++; else { if(run>=5) score+=run-2; run=1; } } if(run>=5) score+=run-2; }
+  for(x=0;x<n;x++){ var run=1; for(y=1;y<n;y++){ if(m[y][x]===m[y-1][x]) run++; else { if(run>=5) score+=run-2; run=1; } } if(run>=5) score+=run-2; }
+  for(y=0;y<n-1;y++) for(x=0;x<n-1;x++){ var c=m[y][x]; if(c===m[y][x+1]&&c===m[y+1][x]&&c===m[y+1][x+1]) score+=3; }
+  var p1=[true,false,true,true,true,false,true,false,false,false,false];
+  var p2=[false,false,false,false,true,false,true,true,true,false,true];
+  function scan(get,len){ var cnt=0; for(var i=0;i+11<=len;i++){ var a=true,b=true; for(var k=0;k<11;k++){ var v=get(i+k); if(v!==p1[k])a=false; if(v!==p2[k])b=false; } if(a||b) cnt++; } return cnt; }
+  for(y=0;y<n;y++){ (function(row){ score+=40*scan(function(i){return m[row][i];}, n); })(y); }
+  for(x=0;x<n;x++){ (function(col){ score+=40*scan(function(i){return m[i][col];}, n); })(x); }
+  var dark=0; for(y=0;y<n;y++) for(x=0;x<n;x++) if(m[y][x]) dark++;
+  var ratio=dark/(n*n)*100;
+  score+=Math.floor(Math.abs(ratio-50)/5)*10;
+  return score;
+};
+function toUtf8(str){
+  var out=[], enc=unescape(encodeURIComponent(str));
+  for(var i=0;i<enc.length;i++) out.push(enc.charCodeAt(i));
+  return out;
+}
+function encodeText(text, eclName){
+  var ecl={L:0,M:1,Q:2,H:3}[eclName||'M'];
+  var bytes=toUtf8(text);
+  for(var ver=1;ver<=40;ver++){
+    var cap=getNumDataCodewords(ver,ecl)*8;
+    var cc=ver<10?8:16;
+    var used=4+cc+bytes.length*8;
+    if(used<=cap){
+      var bb=[];
+      function put(val,len){ for(var i=len-1;i>=0;i--) bb.push((val>>>i)&1); }
+      put(0x4,4); put(bytes.length,cc);
+      for(var i=0;i<bytes.length;i++) put(bytes[i],8);
+      put(0, Math.min(4, cap-bb.length));
+      put(0, (8-bb.length%8)%8);
+      var dcw=[];
+      for(var i=0;i<bb.length;i+=8){ var b=0; for(var j=0;j<8;j++) b=(b<<1)|bb[i+j]; dcw.push(b); }
+      var need=getNumDataCodewords(ver,ecl);
+      for(var pad=0xEC; dcw.length<need; pad^=0xEC^0x11) dcw.push(pad);
+      return new QrCode(ver,ecl,dcw);
+    }
+  }
+  throw new Error('Data too long for QR');
+}
+global.QRC={ encodeText:encodeText };
+})(typeof window!=='undefined'?window:this);
+</script>
+
+<script>
+/* ---------- App state + UI (browser only) ---------- */
+(function(){
+if (typeof window === 'undefined') return;
+
+var KEY = 'screenTimeQuest_v2';
+
+// kids[] and tasks[] start empty — the first-launch onboarding fills them in.
+var DEFAULTS = {
+  settings: { threshold:30, blockSize:15, dailyCap:120, pin:'0000', verifyEnabled:false, authenticators:[] },
+  kids: [],
+  current: 0,
+  tasks: [],
+  onboarded: false
+};
+
+// Palette cycles, so any number of kids gets a distinct colour.
+var KID_COLORS = ['#f472b6','#60a5fa','#34d399','#fbbf24','#a78bfa','#f87171','#22d3ee','#fb923c','#4ade80','#e879f9'];
+function kidColor(i){ return KID_COLORS[i % KID_COLORS.length]; }
+
+function mkKid(name){
+  return { name:name, balance:0, day:STQ.todayStr(), redeemedToday:0,
+           tasksToday:0, bonusToday:0, bonusUsedToday:false, log:[] };
+}
+
+// Each task has: effort (about how long it takes) and earn (screen-time
+// awarded). Small tasks earn ~1:1; bigger tasks are discounted ~2:1 to push
+// kids toward doing many small tasks. 'once' tasks are long but fairly paid
+// (~1:1) and limited to ONE per kid per day.
+function defaultTasks(){
+  return [
+    {id:'brushAM', emoji:'🪥', name:'Brush teeth (morning)', cat:'Quick Wins · ~1:1', effort:2, earn:2, once:false},
+    {id:'brushPM', emoji:'🪥', name:'Brush teeth (night)',   cat:'Quick Wins · ~1:1', effort:2, earn:2, once:false},
+    {id:'hair',    emoji:'💇', name:'Comb hair',             cat:'Quick Wins · ~1:1', effort:1, earn:1, once:false},
+    {id:'dressed', emoji:'👕', name:'Get dressed & ready',   cat:'Quick Wins · ~1:1', effort:3, earn:3, once:false},
+    {id:'bed',     emoji:'🛏️', name:'Make bed',        cat:'Quick Wins · ~1:1', effort:3, earn:3, once:false},
+    {id:'table',   emoji:'🍽️', name:'Clear the table', cat:'Quick Wins · ~1:1', effort:3, earn:3, once:false},
+    {id:'pet',     emoji:'🐶', name:'Feed the pet',          cat:'Quick Wins · ~1:1', effort:2, earn:2, once:false},
+    {id:'trash',   emoji:'🗑️', name:'Take out trash',  cat:'Quick Wins · ~1:1', effort:3, earn:3, once:false},
+    {id:'counters',emoji:'🧴', name:'Wipe counters',         cat:'Quick Wins · ~1:1', effort:4, earn:4, once:false},
+    {id:'tidy',    emoji:'🧸', name:'Tidy a small area',     cat:'Quick Wins · ~1:1', effort:5, earn:5, once:false},
+    {id:'shower',  emoji:'🚿', name:'Shower / bath',         cat:'Quick Wins · ~1:1', effort:5, earn:5, once:false},
+    {id:'dishes',  emoji:'🍴', name:'Load/unload dishwasher',cat:'Medium Tasks · ~1.5:1', effort:8,  earn:5,  once:false},
+    {id:'vacuum',  emoji:'🧹', name:'Vacuum a room',         cat:'Medium Tasks · ~1.5:1', effort:12, earn:8,  once:false},
+    {id:'music',   emoji:'🎻', name:'Practice instrument',   cat:'Medium Tasks · ~1.5:1', effort:15, earn:10, once:false},
+    {id:'cook',    emoji:'🍳', name:'Help cook dinner',      cat:'Medium Tasks · ~1.5:1', effort:15, earn:10, once:false},
+    {id:'read20',  emoji:'📚', name:'Read 20 minutes',       cat:'Medium Tasks · ~1.5:1', effort:20, earn:13, once:false},
+    {id:'bathroom',emoji:'🛁', name:'Clean the bathroom',    cat:'Big Tasks · ~2:1', effort:20, earn:10, once:false},
+    {id:'homework',emoji:'✏️', name:'Homework done',         cat:'Big Tasks · ~2:1', effort:30, earn:15, once:false},
+    {id:'yard',    emoji:'🌱', name:'Yard work / weeding',   cat:'Big Tasks · ~2:1', effort:30, earn:15, once:false},
+    {id:'b_room',  emoji:'⭐', name:'Deep clean & organize bedroom', cat:'Bonus · 1 per day · fair pay', effort:30, earn:30, once:true},
+    {id:'b_study', emoji:'⭐', name:'Full homework + study review',   cat:'Bonus · 1 per day · fair pay', effort:45, earn:45, once:true},
+    {id:'b_yard',  emoji:'⭐', name:'Big outdoor / yard project',     cat:'Bonus · 1 per day · fair pay', effort:45, earn:42, once:true},
+    {id:'b_read',  emoji:'⭐', name:'Read for a full hour',           cat:'Bonus · 1 per day · fair pay', effort:60, earn:55, once:true},
+    {id:'b_proj',  emoji:'⭐', name:'Help with a household project',  cat:'Bonus · 1 per day · fair pay', effort:40, earn:38, once:true}
+  ];
+}
+
+var state, editingTaskIndex = null, selectedBlock = null;
+
+// Storage with an in-memory fallback so the app still works even if a browser
+// blocks localStorage (e.g. private mode or some file:// setups).
+var _mem = {};
+function lsGet(k){ try{ return window.localStorage.getItem(k); }catch(e){ return (k in _mem)?_mem[k]:null; } }
+function lsSet(k,v){ try{ window.localStorage.setItem(k,v); }catch(e){ _mem[k]=v; } }
+function lsDel(k){ try{ window.localStorage.removeItem(k); }catch(e){ delete _mem[k]; } }
+
+function load(){
+  try { state = JSON.parse(lsGet(KEY)); } catch(e){ state = null; }
+  if(!state){ startOnboarding(); return; } // first launch -> onboarding builds state
+  normalize();
+  var t = STQ.todayStr();
+  state.kids.forEach(function(k){ STQ.rollover(k, t); });
+  save();
+}
+// Fill in any fields missing from older saved data so upgrades don't break.
+function normalize(){
+  // Legacy saves (made before onboarding existed) already have kids set up.
+  if(state.onboarded==null) state.onboarded = true;
+  if(!Array.isArray(state.kids)) state.kids = [];
+  var s = state.settings = state.settings || {};
+  if(s.threshold==null) s.threshold=30;
+  if(s.blockSize==null) s.blockSize=15;
+  if(s.dailyCap==null) s.dailyCap=120;
+  if(!s.pin) s.pin='0000';
+  if(typeof s.verifyEnabled!=='boolean') s.verifyEnabled=false;
+  if(!Array.isArray(s.authenticators)) s.authenticators=[];
+  (state.kids||[]).forEach(function(k){
+    if(typeof k.bonusUsedToday!=='boolean') k.bonusUsedToday=false;
+    if(!k.log) k.log=[];
+  });
+  var idc=0;
+  (state.tasks||[]).forEach(function(t){
+    if(t.earn==null) t.earn = (t.min!=null ? t.min : 1);
+    if(t.effort==null) t.effort = (t.min!=null ? t.min : t.earn);
+    if(typeof t.once!=='boolean') t.once=false;
+    if(!t.id) t.id = 't'+Date.now().toString(36)+(idc++);
+  });
+  if(typeof state.current!=='number' || state.current<0 || state.current>=state.kids.length)
+    state.current = 0;
+}
+function save(){ lsSet(KEY, JSON.stringify(state)); }
+function cur(){ return state.kids[state.current]; }
+
+/* ---------- Onboarding (first launch) ---------- */
+var obCount = 2, obTasks = 'starter', obNames = ['Kid 1','Kid 2'];
+function startOnboarding(){
+  obCount = 2; obTasks = 'starter'; obNames = ['Kid 1','Kid 2'];
+  document.getElementById('obStarter').classList.add('sel');
+  document.getElementById('obScratch').classList.remove('sel');
+  renderObNames();
+  openModal('onboardModal');
+}
+function renderObNames(){
+  document.getElementById('obCountLabel').textContent = obCount;
+  var box = document.getElementById('obNames'); box.innerHTML='';
+  obNames.forEach(function(nm,i){
+    var inp = document.createElement('input'); inp.value=nm; inp.placeholder='Kid '+(i+1);
+    inp.style.marginBottom='6px';
+    inp.oninput = function(){ obNames[i]=inp.value; };
+    box.appendChild(inp);
+  });
+}
+function obSetCount(n){
+  n = Math.max(1, n); // 1 to unlimited
+  while(obNames.length < n) obNames.push('Kid '+(obNames.length+1));
+  obNames = obNames.slice(0, n);
+  obCount = n;
+  renderObNames();
+}
+function finishOnboarding(){
+  state = JSON.parse(JSON.stringify(DEFAULTS));
+  state.kids = obNames.map(function(nm){ return mkKid((nm&&nm.trim())||'Kid'); });
+  state.current = 0;
+  state.tasks = (obTasks==='scratch') ? [] : defaultTasks();
+  state.onboarded = true;
+  var t = STQ.todayStr();
+  state.kids.forEach(function(k){ STQ.rollover(k, t); });
+  save();
+  closeModal('onboardModal');
+  render();
+  toast('All set — let’s earn some screen time!');
+}
+
+/* ---------- Rendering ---------- */
+function render(){
+  if(!state) return; // onboarding in progress
+  renderKidTabs(); renderBalance(); renderBonus(); renderTasks();
+  save();
+}
+
+function renderKidTabs(){
+  var el = document.getElementById('kidtabs'); el.innerHTML='';
+  state.kids.forEach(function(k,i){
+    var d = document.createElement('div');
+    d.className = 'kidtab'+(i===state.current?' active':'');
+    d.style.borderColor = i===state.current ? kidColor(i) : 'transparent';
+    d.innerHTML = '<span class="nm">'+esc(k.name)+'</span><span class="bal">'+k.balance+' min</span>';
+    d.onclick = function(){ state.current=i; render(); };
+    el.appendChild(d);
+  });
+}
+
+function renderBalance(){
+  var k = cur(), s = state.settings;
+  document.getElementById('balDisplay').innerHTML = k.balance+' <small>min banked</small>';
+  var capLeft = s.dailyCap - k.redeemedToday;
+  var line = '';
+  if(k.balance < s.threshold){
+    line = 'Bank '+(s.threshold - k.balance)+' more min to unlock redeeming (need '+s.threshold+').';
+  } else {
+    line = 'Redeemed today: '+k.redeemedToday+' / '+s.dailyCap+' min · '+capLeft+' min left today';
+  }
+  document.getElementById('capLine').textContent = line;
+  var blocks = STQ.allowedBlocks(k, s);
+  var btn = document.getElementById('redeemBtn');
+  btn.disabled = blocks.length===0;
+  btn.textContent = blocks.length===0
+    ? (k.balance < s.threshold ? 'Locked — keep earning!' : 'Daily limit reached')
+    : 'Redeem screen time';
+}
+
+function renderBonus(){
+  var k = cur();
+  document.getElementById('taskCount').textContent = k.tasksToday;
+  document.getElementById('bonusEarned').textContent = '+'+k.bonusToday+' bonus min today';
+  var ms = STQ.bonusMilestones;
+  var maxCount = ms[ms.length-1].count;
+  var pct = Math.min(100, (k.tasksToday/maxCount)*100);
+  document.getElementById('bonusFill').style.width = pct+'%';
+  var mEl = document.getElementById('milestones'); mEl.innerHTML='';
+  ms.forEach(function(m){
+    var sp = document.createElement('span');
+    if(k.tasksToday>=m.count) sp.className='hit';
+    sp.textContent = m.count+'★+'+m.bonus;
+    mEl.appendChild(sp);
+  });
+}
+
+function renderTasks(){
+  var wrap = document.getElementById('taskList'); wrap.innerHTML='';
+  var k = cur();
+  if(!state.tasks.length){
+    wrap.innerHTML = '<p class="muted" style="text-align:center;margin:24px 0">'+
+      'No tasks yet. Tap <b>🔒 Parent → ＋ Add new task</b> to create your own.</p>';
+    return;
+  }
+  var cats = [];
+  state.tasks.forEach(function(t){ if(cats.indexOf(t.cat)<0) cats.push(t.cat); });
+  cats.forEach(function(c){
+    var h = document.createElement('div'); h.className='cat'; h.textContent=c; wrap.appendChild(h);
+    var grid = document.createElement('div'); grid.className='tasktiles';
+    state.tasks.forEach(function(t, idx){
+      if(t.cat!==c) return;
+      var locked = t.once && k.bonusUsedToday;
+      var d = document.createElement('div'); d.className='task'+(locked?' locked':'');
+      var badge = t.once ? '<span class="badge">'+(locked?'used today':'1×/day')+'</span>' : '';
+      var sub = '+'+t.earn+' min' + (t.effort?(' · ~'+t.effort+'m'):'');
+      d.innerHTML = '<span class="emoji">'+esc(t.emoji||'⭐')+'</span>'+
+        '<span class="info"><span class="tname">'+esc(t.name)+badge+'</span>'+
+        '<span class="tmin">'+(locked?'✓ done':sub)+'</span></span><span class="add">'+(locked?'✓':'＋')+'</span>';
+      if(!locked) d.onclick = function(){ doTask(idx); };
+      grid.appendChild(d);
+    });
+    wrap.appendChild(grid);
+  });
+}
+
+/* ---------- Actions ---------- */
+function doTask(idx){
+  if(verificationRequired()){ openVerify(idx); return; }
+  completeTaskNow(idx);
+}
+function completeTaskNow(idx){
+  var k = cur(), t = state.tasks[idx];
+  var r = STQ.completeTask(k, t);
+  if(!r.ok){ toast(r.reason||'Not allowed'); render(); return; }
+  k.log.unshift({ t:Date.now(), txt:'✅ '+t.name+' (+'+r.gained+' min'+
+    (r.bonusGained?(' incl. +'+r.bonusGained+' streak bonus'):'')+')' });
+  k.log = k.log.slice(0,200);
+  var msg = '+'+r.gained+' min!';
+  if(r.bonusGained) msg += ' 🔥';
+  if(t.once) msg += ' ⭐';
+  toast(msg);
+  render();
+}
+
+function openRedeem(){
+  var k = cur(), s = state.settings;
+  selectedBlock = null;
+  var blocks = STQ.allowedBlocks(k, s);
+  document.getElementById('redeemInfo').textContent =
+    'Banked: '+k.balance+' min · Left today: '+(s.dailyCap-k.redeemedToday)+' min';
+  var grid = document.getElementById('blockGrid'); grid.innerHTML='';
+  for(var b=s.blockSize; b<=s.dailyCap; b+=s.blockSize){
+    (function(val){
+      var btn = document.createElement('button');
+      btn.className='blockopt'; btn.textContent=val;
+      btn.disabled = blocks.indexOf(val)<0;
+      btn.onclick = function(){
+        selectedBlock = val;
+        Array.prototype.forEach.call(grid.children,function(c){c.classList.remove('sel');});
+        btn.classList.add('sel');
+        document.getElementById('redeemMsg').textContent = 'Redeem '+val+' min of screen time.';
+      };
+      grid.appendChild(btn);
+    })(b);
+  }
+  document.getElementById('redeemMsg').textContent='Pick a block (in minutes).';
+  openModal('redeemModal');
+}
+
+function confirmRedeem(){
+  if(selectedBlock==null){ document.getElementById('redeemMsg').textContent='Pick a block first.'; return; }
+  var k = cur(), s = state.settings;
+  var r = STQ.redeem(k, s, selectedBlock);
+  if(!r.ok){ document.getElementById('redeemMsg').textContent = r.reason; return; }
+  k.log.unshift({ t:Date.now(), txt:'🎮 Redeemed '+selectedBlock+' min screen time' });
+  toast('Enjoy '+selectedBlock+' min! 🎮');
+  closeModal('redeemModal');
+  render();
+}
+
+/* ---------- Parent panel ---------- */
+function openParent(){
+  var sel = document.getElementById('adjKid'); sel.innerHTML='';
+  var pen = document.getElementById('penKid'); pen.innerHTML='';
+  state.kids.forEach(function(k,i){
+    var o=document.createElement('option'); o.value=i; o.textContent=k.name; sel.appendChild(o);
+    var o2=document.createElement('option'); o2.value=i; o2.textContent=k.name; pen.appendChild(o2);
+  });
+  renderNameEditors();
+  renderTaskEditors();
+  renderAuthSection();
+  document.getElementById('setThreshold').value = state.settings.threshold;
+  document.getElementById('setBlock').value = state.settings.blockSize;
+  document.getElementById('setCap').value = state.settings.dailyCap;
+  document.getElementById('setPin').value = '';
+  var dl = document.getElementById('catlist'); dl.innerHTML='';
+  var cats=[]; state.tasks.forEach(function(t){ if(cats.indexOf(t.cat)<0)cats.push(t.cat); });
+  cats.forEach(function(c){ var o=document.createElement('option'); o.value=c; dl.appendChild(o); });
+  openModal('parentModal');
+}
+
+function renderNameEditors(){
+  var ne = document.getElementById('nameEditors'); ne.innerHTML='';
+  state.kids.forEach(function(k,i){
+    var row = document.createElement('div'); row.className='editrow';
+    var dot = document.createElement('span');
+    dot.style.cssText='width:14px;height:14px;border-radius:50%;flex:0 0 auto;background:'+kidColor(i);
+    var inp = document.createElement('input'); inp.value=k.name; inp.className='info';
+    inp.oninput = function(){ k.name = inp.value || ('Kid '+(i+1)); render(); };
+    var del = document.createElement('button'); del.className='ghost'; del.textContent='🗑';
+    del.disabled = state.kids.length<=1;
+    del.onclick = function(){
+      if(state.kids.length<=1){ alert('You need at least one kid.'); return; }
+      if(confirm('Remove "'+k.name+'" and all their minutes & history?')){
+        state.kids.splice(i,1);
+        if(state.current>=state.kids.length) state.current=state.kids.length-1;
+        save(); openParent(); render();
+      }
+    };
+    row.appendChild(dot); row.appendChild(inp); row.appendChild(del); ne.appendChild(row);
+  });
+}
+function addKid(){
+  state.kids.push(mkKid('Kid '+(state.kids.length+1)));
+  save(); openParent(); render();
+}
+
+function renderTaskEditors(){
+  var box = document.getElementById('taskEditors'); box.innerHTML='';
+  state.tasks.forEach(function(t,idx){
+    var d = document.createElement('div'); d.className='editrow';
+    var meta = '+'+t.earn+'m earn'+(t.effort?(' · ~'+t.effort+'m effort'):'')+(t.once?' · 1×/day ⭐':'');
+    d.innerHTML = '<span class="info">'+esc(t.emoji||'⭐')+' '+esc(t.name)+
+      '<br><span class="muted" style="font-size:12px">'+meta+' · '+esc(t.cat)+'</span></span>';
+    var ed = document.createElement('button'); ed.className='ghost'; ed.textContent='Edit';
+    ed.onclick = function(){ openTaskEdit(idx); };
+    var del = document.createElement('button'); del.className='ghost'; del.textContent='🗑';
+    del.onclick = function(){ if(confirm('Delete "'+t.name+'"?')){ state.tasks.splice(idx,1); save(); renderTaskEditors(); render(); } };
+    d.appendChild(ed); d.appendChild(del); box.appendChild(d);
+  });
+}
+
+function openTaskEdit(idx){
+  editingTaskIndex = idx;
+  var t = idx==null ? {emoji:'',name:'',cat:'',effort:'',earn:'',once:false} : state.tasks[idx];
+  document.getElementById('taskEditTitle').textContent = idx==null?'Add task':'Edit task';
+  document.getElementById('teEmoji').value = t.emoji||'';
+  document.getElementById('teName').value = t.name||'';
+  document.getElementById('teCat').value = t.cat||'';
+  document.getElementById('teEffort').value = t.effort||'';
+  document.getElementById('teEarn').value = t.earn||'';
+  document.getElementById('teOnce').checked = !!t.once;
+  updateRatioHint();
+  openModal('taskEditModal');
+}
+function updateRatioHint(){
+  var ef = parseFloat(document.getElementById('teEffort').value);
+  var ea = parseFloat(document.getElementById('teEarn').value);
+  var el = document.getElementById('teRatio');
+  if(ef>0 && ea>0){ el.textContent = 'Ratio ≈ '+(ef/ea).toFixed(1)+':1 (effort:earned). Small tasks ~1:1, big tasks ~2:1.'; }
+  else { el.textContent='Tip: small tasks ~1:1, big tasks ~2:1. Bonus (1×/day) tasks ~1:1.'; }
+}
+
+function saveTaskEdit(){
+  var emoji = document.getElementById('teEmoji').value.trim()||'⭐';
+  var name = document.getElementById('teName').value.trim();
+  var cat = document.getElementById('teCat').value.trim()||'Tasks';
+  var effort = parseInt(document.getElementById('teEffort').value,10);
+  var earn = parseInt(document.getElementById('teEarn').value,10);
+  var once = document.getElementById('teOnce').checked;
+  if(!name){ alert('Please enter a task name.'); return; }
+  if(!(earn>=1)){ alert('Earned minutes must be at least 1.'); return; }
+  if(!(effort>=1)) effort = earn;
+  if(editingTaskIndex==null){
+    state.tasks.push({id:'t'+Date.now().toString(36), emoji:emoji, name:name, cat:cat, effort:effort, earn:earn, once:once});
+  } else {
+    var t = state.tasks[editingTaskIndex];
+    t.emoji=emoji; t.name=name; t.cat=cat; t.effort=effort; t.earn=earn; t.once=once;
+  }
+  save(); closeModal('taskEditModal'); renderTaskEditors(); render();
+}
+
+function saveSettings(){
+  var th = parseInt(document.getElementById('setThreshold').value,10);
+  var bl = parseInt(document.getElementById('setBlock').value,10);
+  var cp = parseInt(document.getElementById('setCap').value,10);
+  var pin = document.getElementById('setPin').value.trim();
+  if(th>=0) state.settings.threshold = th;
+  if(bl>=1) state.settings.blockSize = bl;
+  if(cp>=1) state.settings.dailyCap = cp;
+  if(pin){ if(/^\d{4}$/.test(pin)) state.settings.pin = pin; else { alert('PIN must be 4 digits.'); return; } }
+  save(); render(); toast('Settings saved');
+  closeModal('parentModal');
+}
+
+function applyAdjust(){
+  var i = parseInt(document.getElementById('adjKid').value,10);
+  var amt = parseInt(document.getElementById('adjAmt').value,10);
+  if(isNaN(amt)){ alert('Enter a number, e.g. 10 or -10.'); return; }
+  state.kids[i].balance = Math.max(0, state.kids[i].balance + amt);
+  state.kids[i].log.unshift({t:Date.now(), txt:'⚙️ Parent adjusted '+(amt>=0?'+':'')+amt+' min'});
+  document.getElementById('adjAmt').value='';
+  save(); render(); toast('Adjusted '+state.kids[i].name);
+}
+
+function applyPenalty(){
+  var i = parseInt(document.getElementById('penKid').value,10);
+  var amt = parseInt(document.getElementById('penAmt').value,10);
+  var reason = document.getElementById('penReason').value.trim();
+  if(!(amt>=1)){ alert('Enter how many minutes to deduct (1 or more).'); return; }
+  var k = state.kids[i];
+  var lost = Math.min(amt, k.balance); // can't go below 0
+  k.balance -= lost;
+  k.log.unshift({t:Date.now(), txt:'⚠️ Penalty −'+lost+' min'+(reason?(' ('+reason+')'):'')});
+  document.getElementById('penAmt').value='';
+  document.getElementById('penReason').value='';
+  save(); render(); toast('Penalty: −'+lost+' min from '+k.name);
+}
+
+/* ---------- PIN gate ---------- */
+function askPin(){
+  document.getElementById('pinInput').value='';
+  document.getElementById('pinMsg').textContent='';
+  openModal('pinModal');
+  setTimeout(function(){ document.getElementById('pinInput').focus(); },100);
+}
+function submitPin(){
+  var v = document.getElementById('pinInput').value;
+  if(v === state.settings.pin){ closeModal('pinModal'); openParent(); }
+  else document.getElementById('pinMsg').textContent='Wrong PIN. (Default is 0000)';
+}
+
+/* ---------- History ---------- */
+function openHistory(){
+  var k = cur();
+  var el = document.getElementById('histList'); el.innerHTML='';
+  if(!k.log.length){ el.innerHTML='<div>No activity yet.</div>'; }
+  k.log.forEach(function(e){
+    var d = document.createElement('div');
+    var dt = new Date(e.t);
+    d.textContent = dt.toLocaleDateString()+' '+dt.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})+'  '+e.txt;
+    el.appendChild(d);
+  });
+  openModal('historyModal');
+}
+
+/* ---------- Parent verification (TOTP / authenticator) ---------- */
+function nowSec(){ return Math.floor(Date.now()/1000); }
+function verificationRequired(){
+  return !!state.settings.verifyEnabled && (state.settings.authenticators||[]).length>0;
+}
+var pendingTaskIndex = null;
+function openVerify(idx){
+  pendingTaskIndex = idx;
+  var t = state.tasks[idx];
+  document.getElementById('verifyTask').textContent = t.name + '  (+'+t.earn+' min)';
+  document.getElementById('verifyCode').value='';
+  document.getElementById('verifyMsg').textContent='';
+  openModal('verifyModal');
+  setTimeout(function(){ document.getElementById('verifyCode').focus(); },100);
+}
+function submitVerify(){
+  var code = document.getElementById('verifyCode').value.trim();
+  var auths = state.settings.authenticators||[];
+  var ok = auths.some(function(a){ return STQ.verifyTotp(a.secret, code, nowSec(), 1); });
+  if(ok){ closeModal('verifyModal'); completeTaskNow(pendingTaskIndex); }
+  else document.getElementById('verifyMsg').textContent = 'That code isn’t right or has expired. Ask a parent for the current code.';
+}
+
+function renderAuthSection(){
+  document.getElementById('verifyToggle').checked = !!state.settings.verifyEnabled;
+  var list = document.getElementById('authList'); list.innerHTML='';
+  var auths = state.settings.authenticators||[];
+  auths.forEach(function(a,i){
+    var d = document.createElement('div'); d.className='editrow';
+    d.innerHTML = '<span class="info">📱 '+esc(a.label)+'</span>';
+    var setup = document.createElement('button'); setup.className='ghost'; setup.textContent='Setup';
+    setup.onclick = function(){ openAuthDetails(i); };
+    var del = document.createElement('button'); del.className='ghost'; del.textContent='🗑';
+    del.onclick = function(){ if(confirm('Remove '+a.label+'?')){ auths.splice(i,1); save(); renderAuthSection(); render(); } };
+    d.appendChild(setup); d.appendChild(del); list.appendChild(d);
+  });
+  var hint = document.getElementById('verifyHint');
+  if(state.settings.verifyEnabled && !auths.length) hint.textContent='⚠ Add at least one parent device below, or verification can’t be enforced.';
+  else if(auths.length) hint.textContent='A code from ANY listed device approves a task — add one per parent. You can also scan the same code onto several phones.';
+  else hint.textContent='';
+}
+function addAuthenticator(){
+  var label = prompt('Name this parent device (e.g. "Mom’s phone")','Parent');
+  if(label==null) return;
+  state.settings.authenticators = state.settings.authenticators||[];
+  state.settings.authenticators.push({ label: label||'Parent', secret: randomSecret() });
+  save(); renderAuthSection();
+  openAuthDetails(state.settings.authenticators.length-1);
+}
+function openAuthDetails(i){
+  var a = state.settings.authenticators[i];
+  document.getElementById('authTitle').textContent = 'Set up: '+a.label;
+  document.getElementById('authKey').textContent = groupKey(a.secret);
+  drawQr(otpauthUri(a.label, a.secret));
+  document.getElementById('authTest').value='';
+  document.getElementById('authTestMsg').textContent='';
+  document.getElementById('authTestBtn').onclick = function(){
+    var code = document.getElementById('authTest').value.trim();
+    var ok = STQ.verifyTotp(a.secret, code, nowSec(), 1);
+    var m = document.getElementById('authTestMsg');
+    m.textContent = ok ? '✓ Works! This phone is set up correctly.'
+                       : '✗ No match. Re-check the key was typed exactly, and that the phone’s clock is correct.';
+    m.style.color = ok ? 'var(--good)' : 'var(--bad)';
+  };
+  openModal('authModal');
+}
+function groupKey(s){ return String(s).replace(/(.{4})/g,'$1 ').trim(); }
+function otpauthUri(label, secret){
+  var iss='Screen Time Quest';
+  return 'otpauth://totp/'+encodeURIComponent(iss+':'+label)+'?secret='+secret+
+         '&issuer='+encodeURIComponent(iss)+'&period=30&digits=6&algorithm=SHA1';
+}
+function randomSecret(){
+  var bytes = new Array(20);
+  if(window.crypto && window.crypto.getRandomValues){
+    var arr = new Uint8Array(20); window.crypto.getRandomValues(arr);
+    for(var i=0;i<20;i++) bytes[i]=arr[i];
+  } else { for(var i=0;i<20;i++) bytes[i]=Math.floor(Math.random()*256); }
+  return STQ.base32Encode(bytes);
+}
+function drawQr(text){
+  var canvas = document.getElementById('authQr');
+  try {
+    var qr = QRC.encodeText(text, 'M');
+    var n = qr.size, quiet = 4, scale = Math.max(2, Math.floor(220/(n+2*quiet)));
+    var px = (n+2*quiet)*scale;
+    canvas.width = px; canvas.height = px;
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0,0,px,px);
+    ctx.fillStyle = '#000';
+    for(var y=0;y<n;y++) for(var x=0;x<n;x++){
+      if(qr.modules[y][x]) ctx.fillRect((x+quiet)*scale,(y+quiet)*scale,scale,scale);
+    }
+    canvas.style.display='block';
+  } catch(e){ canvas.style.display='none'; }
+}
+
+/* ---------- helpers ---------- */
+function openModal(id){ document.getElementById(id).classList.add('show'); }
+function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+window.closeModal = closeModal;
+function esc(s){ return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+var toastTimer;
+function toast(msg){
+  var t = document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer=setTimeout(function(){t.classList.remove('show');},1600);
+}
+
+/* ---------- wire up ---------- */
+document.getElementById('redeemBtn').onclick = openRedeem;
+document.getElementById('confirmRedeem').onclick = confirmRedeem;
+document.getElementById('historyBtn').onclick = openHistory;
+document.getElementById('parentBtn').onclick = askPin;
+document.getElementById('pinSubmit').onclick = submitPin;
+document.getElementById('pinInput').addEventListener('keyup',function(e){ if(e.key==='Enter') submitPin(); });
+document.getElementById('saveSettings').onclick = saveSettings;
+document.getElementById('adjBtn').onclick = applyAdjust;
+document.getElementById('penBtn').onclick = applyPenalty;
+document.getElementById('addKidBtn').onclick = addKid;
+document.getElementById('obMinus').onclick = function(){ obSetCount(obCount-1); };
+document.getElementById('obPlus').onclick = function(){ obSetCount(obCount+1); };
+document.getElementById('obStarter').onclick = function(){ obTasks='starter'; this.classList.add('sel'); document.getElementById('obScratch').classList.remove('sel'); };
+document.getElementById('obScratch').onclick = function(){ obTasks='scratch'; this.classList.add('sel'); document.getElementById('obStarter').classList.remove('sel'); };
+document.getElementById('obFinish').onclick = finishOnboarding;
+document.getElementById('addTaskBtn').onclick = function(){ openTaskEdit(null); };
+document.getElementById('teSave').onclick = saveTaskEdit;
+document.getElementById('teEffort').addEventListener('input', updateRatioHint);
+document.getElementById('teEarn').addEventListener('input', updateRatioHint);
+document.getElementById('verifyToggle').onchange = function(){ state.settings.verifyEnabled = this.checked; save(); renderAuthSection(); };
+document.getElementById('addAuthBtn').onclick = addAuthenticator;
+document.getElementById('verifySubmit').onclick = submitVerify;
+document.getElementById('verifyCode').addEventListener('keyup', function(e){ if(e.key==='Enter') submitVerify(); });
+document.getElementById('resetBtn').onclick = function(){
+  if(confirm('This erases ALL balances, tasks and settings and starts fresh. Are you sure?')){
+    lsDel(KEY); load(); render(); closeModal('parentModal'); toast('Reset done');
+  }
+};
+
+load(); render();
+})();
+</script>
+</body>
+</html>

@@ -61,7 +61,8 @@ It will be live in under a minute.
 
 | App | Description | Tags |
 |-----|-------------|------|
-| *(coming soon)* | | |
+| [Password Generator](apps/password-generator/) | Cryptographically strong, fully offline password generator | `security` `generator` `privacy` `offline` |
+| [Screen Time Quest](apps/screen-time-quest/) | Kids earn screen time by completing chores; optional TOTP parent approval | `family` `kids` `chores` `gamification` `offline` |
 
 > Apps will be added here as the collection grows. Each entry links directly to the live demo and source.
 
