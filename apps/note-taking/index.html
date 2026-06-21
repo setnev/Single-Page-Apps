@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>🗒️ Notes</title>
+<style>
+  /* ---------- Theme tokens ---------- */
+  :root {
+    --bg: #0f172a;          /* page background */
+    --panel: #1e293b;       /* sidebar / panels */
+    --panel-2: #273449;     /* raised elements: inputs, cards */
+    --accent: #38bdf8;      /* primary accent */
+    --text: #e2e8f0;        /* main text */
+    --muted: #94a3b8;       /* secondary text */
+    --good: #34d399;        /* success */
+    --bad: #f87171;         /* danger */
+    --radius: 12px;
+    --radius-sm: 8px;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+            Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  button, input, textarea, select {
+    font-family: inherit;
+    font-size: inherit;
+    color: inherit;
+  }
+
+  /* ---------- Layout ---------- */
+  .app {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar {
+    background: var(--panel);
+    border-right: 1px solid #0b1220;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .sidebar-header {
+    padding: 16px;
+    border-bottom: 1px solid #0b1220;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .brand h1 {
+    font-size: 18px;
+    margin: 0;
+    font-weight: 700;
+  }
+  .count-pill {
+    background: var(--panel-2);
+    color: var(--muted);
+    font-size: 12px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+
+  .btn {
+    background: var(--panel-2);
+    border: 1px solid transparent;
+    color: var(--text);
+    padding: 9px 12px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background .15s, border-color .15s, opacity .15s;
+  }
+  .btn:hover { background: #324460; }
+  .btn:active { transform: translateY(1px); }
+  .btn.primary {
+    background: var(--accent);
+    color: #06283b;
+    font-weight: 600;
+    width: 100%;
+  }
+  .btn.primary:hover { background: #54c8fa; }
+  .btn.danger:hover { border-color: var(--bad); color: var(--bad); }
+  .btn.small { padding: 6px 10px; font-size: 13px; }
+
+  .search {
+    margin-top: 12px;
+    display: flex;
+    gap: 8px;
+  }
+  .search input {
+    flex: 1;
+    background: var(--panel-2);
+    border: 1px solid #0b1220;
+    border-radius: var(--radius-sm);
+    padding: 8px 10px;
+    outline: none;
+  }
+  .search input:focus { border-color: var(--accent); }
+
+  .controls {
+    margin-top: 10px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .controls label { color: var(--muted); font-size: 12px; }
+  select {
+    background: var(--panel-2);
+    border: 1px solid #0b1220;
+    border-radius: var(--radius-sm);
+    padding: 6px 8px;
+    outline: none;
+    cursor: pointer;
+  }
+  select:focus { border-color: var(--accent); }
+
+  /* Tag filter chips */
+  .tag-filter {
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .chip {
+    background: var(--panel-2);
+    color: var(--muted);
+    border: 1px solid transparent;
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .chip:hover { border-color: var(--accent); }
+  .chip.active {
+    background: var(--accent);
+    color: #06283b;
+    font-weight: 600;
+  }
+
+  /* Note list */
+  .note-list {
+    overflow-y: auto;
+    flex: 1;
+    padding: 8px;
+    min-height: 0;
+  }
+  .note-card {
+    background: var(--panel-2);
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    padding: 11px 12px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    position: relative;
+    transition: border-color .15s, background .15s;
+  }
+  .note-card:hover { border-color: #3b4d6b; }
+  .note-card.active {
+    border-color: var(--accent);
+    background: #2c3e58;
+  }
+  .note-card .nc-title {
+    font-weight: 600;
+    margin: 0 0 3px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    word-break: break-word;
+  }
+  .note-card .nc-snippet {
+    color: var(--muted);
+    font-size: 13px;
+    margin: 0 0 6px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    word-break: break-word;
+  }
+  .note-card .nc-meta {
+    color: var(--muted);
+    font-size: 11px;
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    align-items: center;
+  }
+  .note-card .nc-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+  }
+  .nc-tag {
+    background: #1b3447;
+    color: var(--accent);
+    font-size: 10px;
+    padding: 1px 7px;
+    border-radius: 999px;
+  }
+  .pin-star { color: var(--accent); font-size: 13px; }
+
+  /* Main editor */
+  .main {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background: var(--bg);
+  }
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--panel);
+    flex-wrap: wrap;
+  }
+  .toolbar .spacer { flex: 1; }
+  .toolbar .status {
+    color: var(--muted);
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .toolbar .status.saved { color: var(--good); }
+
+  .editor {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+    gap: 12px;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  .title-input {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--panel);
+    padding: 6px 2px;
+    font-size: 22px;
+    font-weight: 700;
+    outline: none;
+  }
+  .title-input:focus { border-color: var(--accent); }
+
+  .tags-input-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .tags-input-row label { color: var(--muted); font-size: 13px; }
+  .tags-input {
+    flex: 1;
+    min-width: 180px;
+    background: var(--panel-2);
+    border: 1px solid #0b1220;
+    border-radius: var(--radius-sm);
+    padding: 7px 10px;
+    outline: none;
+  }
+  .tags-input:focus { border-color: var(--accent); }
+
+  .body-input {
+    flex: 1;
+    min-height: 240px;
+    background: var(--panel);
+    border: 1px solid #0b1220;
+    border-radius: var(--radius);
+    padding: 14px;
+    resize: none;
+    outline: none;
+    line-height: 1.6;
+  }
+  .body-input:focus { border-color: var(--accent); }
+
+  .pin-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* Empty state */
+  .empty {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: var(--muted);
+    padding: 24px;
+  }
+  .empty .big { font-size: 56px; margin-bottom: 12px; }
+  .empty h2 { color: var(--text); margin: 0 0 8px; }
+  .empty p { max-width: 360px; margin: 0 0 18px; }
+
+  .list-empty {
+    color: var(--muted);
+    text-align: center;
+    padding: 30px 12px;
+    font-size: 14px;
+  }
+
+  /* Hidden helper */
+  .hidden { display: none !important; }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--panel-2);
+    border: 1px solid #3b4d6b;
+    color: var(--text);
+    padding: 10px 16px;
+    border-radius: var(--radius-sm);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s, transform .2s;
+    z-index: 50;
+    font-size: 14px;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* Mobile menu toggle (hidden on desktop) */
+  .menu-toggle { display: none; }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 760px) {
+    .app { grid-template-columns: 1fr; }
+    .sidebar {
+      position: fixed;
+      z-index: 30;
+      width: 86%;
+      max-width: 340px;
+      height: 100%;
+      transform: translateX(-105%);
+      transition: transform .22s ease;
+      box-shadow: 0 0 30px rgba(0,0,0,.5);
+    }
+    .app.nav-open .sidebar { transform: translateX(0); }
+    .menu-toggle { display: inline-flex; }
+    .backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.5);
+      z-index: 25;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s;
+    }
+    .app.nav-open .backdrop { opacity: 1; pointer-events: auto; }
+  }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="brand">
+        <h1>🗒️ Notes</h1>
+        <span class="count-pill" id="countPill">0 notes</span>
+      </div>
+
+      <button class="btn primary" id="newBtn">＋ New note</button>
+
+      <div class="search">
+        <input id="searchInput" type="search" placeholder="Search notes…" />
+      </div>
+
+      <div class="controls">
+        <label for="sortSelect">Sort</label>
+        <select id="sortSelect">
+          <option value="edited">Last edited</option>
+          <option value="title">Title (A–Z)</option>
+        </select>
+        <button class="btn small" id="exportBtn" title="Export all notes as JSON">Export</button>
+        <button class="btn small" id="importBtn" title="Import notes from JSON">Import</button>
+        <!-- hidden file input used by Import -->
+        <input type="file" id="importFile" accept="application/json,.json" class="hidden" />
+      </div>
+
+      <div class="tag-filter" id="tagFilter"><!-- tag chips injected here --></div>
+    </div>
+
+    <div class="note-list" id="noteList"><!-- note cards injected here --></div>
+  </aside>
+
+  <div class="backdrop" id="backdrop"></div>
+
+  <!-- ============ MAIN ============ -->
+  <main class="main">
+    <div class="toolbar">
+      <button class="btn small menu-toggle" id="menuToggle" title="Toggle list">☰</button>
+      <button class="btn small pin-toggle" id="pinBtn" title="Pin note to top">☆ Pin</button>
+      <button class="btn small" id="dupBtn" title="Duplicate note">⧉ Duplicate</button>
+      <button class="btn small" id="txtBtn" title="Export this note as .txt">⬇ .txt</button>
+      <button class="btn small danger" id="delBtn" title="Delete note">🗑 Delete</button>
+      <span class="spacer"></span>
+      <span class="status" id="status">No note selected</span>
+    </div>
+
+    <!-- Editor view -->
+    <div class="editor hidden" id="editor">
+      <input class="title-input" id="titleInput" type="text" placeholder="Untitled note" maxlength="200" />
+      <div class="tags-input-row">
+        <label for="tagsInput">Tags</label>
+        <input class="tags-input" id="tagsInput" type="text" placeholder="comma, separated, tags" />
+      </div>
+      <textarea class="body-input" id="bodyInput" placeholder="Start writing…"></textarea>
+    </div>
+
+    <!-- Empty state -->
+    <div class="empty" id="emptyState">
+      <div class="big">🗒️</div>
+      <h2>No note selected</h2>
+      <p>Create your first note to get started. Everything is saved privately in your browser — no account, no cloud.</p>
+      <button class="btn primary" style="width:auto" id="emptyNewBtn">＋ Create your first note</button>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================================
+   Notes — a fully offline, single-file note-taking app.
+   Storage: localStorage. No network, no account, privacy-first.
+   Feature picked for "tags OR pinning": BOTH tags AND pinning implemented,
+   with tagging used for filtering and pinning used for ordering.
+   ========================================================================= */
+
+(function () {
+  "use strict";
+
+  // ---- Constants ----
+  var STORAGE_KEY = "notes.app.v1";
+  var AUTOSAVE_MS = 500; // debounce delay for auto-save
+
+  // ---- State ----
+  var notes = [];            // array of note objects
+  var currentId = null;      // id of the note being edited
+  var searchTerm = "";
+  var sortMode = "edited";   // "edited" | "title"
+  var activeTag = null;      // currently filtered tag, or null for all
+  var saveTimer = null;      // debounce handle
+  var toastTimer = null;
+
+  // ---- DOM refs ----
+  var el = {
+    app: document.getElementById("app"),
+    countPill: document.getElementById("countPill"),
+    newBtn: document.getElementById("newBtn"),
+    emptyNewBtn: document.getElementById("emptyNewBtn"),
+    searchInput: document.getElementById("searchInput"),
+    sortSelect: document.getElementById("sortSelect"),
+    exportBtn: document.getElementById("exportBtn"),
+    importBtn: document.getElementById("importBtn"),
+    importFile: document.getElementById("importFile"),
+    tagFilter: document.getElementById("tagFilter"),
+    noteList: document.getElementById("noteList"),
+    editor: document.getElementById("editor"),
+    emptyState: document.getElementById("emptyState"),
+    titleInput: document.getElementById("titleInput"),
+    tagsInput: document.getElementById("tagsInput"),
+    bodyInput: document.getElementById("bodyInput"),
+    status: document.getElementById("status"),
+    pinBtn: document.getElementById("pinBtn"),
+    dupBtn: document.getElementById("dupBtn"),
+    txtBtn: document.getElementById("txtBtn"),
+    delBtn: document.getElementById("delBtn"),
+    menuToggle: document.getElementById("menuToggle"),
+    backdrop: document.getElementById("backdrop"),
+    toast: document.getElementById("toast")
+  };
+
+  /* ----------------------------------------------------------------------
+     Utilities
+     ---------------------------------------------------------------------- */
+
+  // Generate a reasonably-unique id without external libs.
+  function uid() {
+    return "n_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+  }
+
+  // Escape text for safe HTML insertion.
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  // Human-friendly relative/absolute time.
+  function timeAgo(ts) {
+    if (!ts) return "never";
+    var diff = Date.now() - ts;
+    var s = Math.floor(diff / 1000);
+    if (s < 5) return "just now";
+    if (s < 60) return s + "s ago";
+    var m = Math.floor(s / 60);
+    if (m < 60) return m + "m ago";
+    var h = Math.floor(m / 60);
+    if (h < 24) return h + "h ago";
+    var d = Math.floor(h / 24);
+    if (d < 7) return d + "d ago";
+    var date = new Date(ts);
+    return date.toLocaleDateString();
+  }
+
+  function fullTime(ts) {
+    if (!ts) return "never";
+    return new Date(ts).toLocaleString();
+  }
+
+  // Parse a comma-separated tag string into a clean, de-duped array.
+  function parseTags(str) {
+    var seen = {};
+    var out = [];
+    String(str || "").split(",").forEach(function (raw) {
+      var t = raw.trim().toLowerCase();
+      if (t && !seen[t]) { seen[t] = true; out.push(t); }
+    });
+    return out;
+  }
+
+  function showToast(msg) {
+    el.toast.textContent = msg;
+    el.toast.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () {
+      el.toast.classList.remove("show");
+    }, 2200);
+  }
+
+  /* ----------------------------------------------------------------------
+     Persistence
+     ---------------------------------------------------------------------- */
+
+  function load() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) notes = parsed.map(normalizeNote);
+      }
+    } catch (e) {
+      console.error("Failed to load notes:", e);
+      notes = [];
+    }
+  }
+
+  function persist() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
+    } catch (e) {
+      console.error("Failed to save notes:", e);
+      showToast("⚠ Could not save (storage full?)");
+    }
+  }
+
+  // Make sure an incoming object has all required fields.
+  function normalizeNote(n) {
+    n = n || {};
+    return {
+      id: typeof n.id === "string" && n.id ? n.id : uid(),
+      title: typeof n.title === "string" ? n.title : "",
+      body: typeof n.body === "string" ? n.body : "",
+      tags: Array.isArray(n.tags) ? parseTags(n.tags.join(",")) : parseTags(n.tags),
+      pinned: !!n.pinned,
+      created: typeof n.created === "number" ? n.created : Date.now(),
+      updated: typeof n.updated === "number" ? n.updated : Date.now()
+    };
+  }
+
+  function getNote(id) {
+    for (var i = 0; i < notes.length; i++) if (notes[i].id === id) return notes[i];
+    return null;
+  }
+
+  /* ----------------------------------------------------------------------
+     Derived data: filtering + sorting
+     ---------------------------------------------------------------------- */
+
+  function visibleNotes() {
+    var term = searchTerm.trim().toLowerCase();
+    var list = notes.filter(function (n) {
+      // Tag filter
+      if (activeTag && n.tags.indexOf(activeTag) === -1) return false;
+      // Text search across title, body, and tags
+      if (term) {
+        var hay = (n.title + " " + n.body + " " + n.tags.join(" ")).toLowerCase();
+        if (hay.indexOf(term) === -1) return false;
+      }
+      return true;
+    });
+
+    list.sort(function (a, b) {
+      // Pinned notes always float to the top.
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      if (sortMode === "title") {
+        var at = (a.title || "Untitled").toLowerCase();
+        var bt = (b.title || "Untitled").toLowerCase();
+        return at < bt ? -1 : at > bt ? 1 : 0;
+      }
+      // default: most recently edited first
+      return b.updated - a.updated;
+    });
+    return list;
+  }
+
+  // Collect all unique tags across all notes (sorted).
+  function allTags() {
+    var seen = {};
+    notes.forEach(function (n) {
+      n.tags.forEach(function (t) { seen[t] = true; });
+    });
+    return Object.keys(seen).sort();
+  }
+
+  /* ----------------------------------------------------------------------
+     Rendering
+     ---------------------------------------------------------------------- */
+
+  function render() {
+    renderCount();
+    renderTagFilter();
+    renderList();
+    renderEditor();
+  }
+
+  function renderCount() {
+    var n = notes.length;
+    el.countPill.textContent = n + (n === 1 ? " note" : " notes");
+  }
+
+  function renderTagFilter() {
+    var tags = allTags();
+    if (tags.length === 0) {
+      el.tagFilter.innerHTML = "";
+      return;
+    }
+    var html = '<span class="chip ' + (activeTag === null ? "active" : "") +
+               '" data-tag="">All</span>';
+    tags.forEach(function (t) {
+      html += '<span class="chip ' + (activeTag === t ? "active" : "") +
+              '" data-tag="' + esc(t) + '">#' + esc(t) + "</span>";
+    });
+    el.tagFilter.innerHTML = html;
+  }
+
+  function snippet(body) {
+    var s = (body || "").replace(/\s+/g, " ").trim();
+    return s.length > 120 ? s.slice(0, 120) + "…" : s;
+  }
+
+  function renderList() {
+    var list = visibleNotes();
+    if (list.length === 0) {
+      var msg = notes.length === 0
+        ? "No notes yet. Click <b>＋ New note</b> to begin."
+        : "No notes match your search/filter.";
+      el.noteList.innerHTML = '<div class="list-empty">' + msg + "</div>";
+      return;
+    }
+
+    var html = "";
+    list.forEach(function (n) {
+      var active = n.id === currentId ? " active" : "";
+      var tagsHtml = "";
+      if (n.tags.length) {
+        tagsHtml = '<div class="nc-tags">' +
+          n.tags.map(function (t) { return '<span class="nc-tag">#' + esc(t) + "</span>"; }).join("") +
+          "</div>";
+      }
+      html +=
+        '<div class="note-card' + active + '" data-id="' + n.id + '">' +
+          '<p class="nc-title">' +
+            (n.pinned ? '<span class="pin-star" title="Pinned">★</span>' : "") +
+            esc(n.title || "Untitled") +
+          "</p>" +
+          '<p class="nc-snippet">' + (esc(snippet(n.body)) || "<i>Empty note</i>") + "</p>" +
+          '<div class="nc-meta"><span>' + esc(timeAgo(n.updated)) + "</span></div>" +
+          tagsHtml +
+        "</div>";
+    });
+    el.noteList.innerHTML = html;
+  }
+
+  function renderEditor() {
+    var note = getNote(currentId);
+    var hasNote = !!note;
+
+    el.editor.classList.toggle("hidden", !hasNote);
+    el.emptyState.classList.toggle("hidden", hasNote);
+
+    // Toolbar buttons only make sense with a selected note.
+    [el.pinBtn, el.dupBtn, el.txtBtn, el.delBtn].forEach(function (b) {
+      b.disabled = !hasNote;
+      b.style.opacity = hasNote ? "1" : ".4";
+    });
+
+    if (!hasNote) {
+      el.status.textContent = "No note selected";
+      el.status.classList.remove("saved");
+      return;
+    }
+
+    // Populate fields only if they differ (avoids cursor jumps while typing).
+    if (el.titleInput.value !== note.title) el.titleInput.value = note.title;
+    if (el.tagsInput.value !== note.tags.join(", ")) el.tagsInput.value = note.tags.join(", ");
+    if (el.bodyInput.value !== note.body) el.bodyInput.value = note.body;
+
+    el.pinBtn.innerHTML = note.pinned ? "★ Pinned" : "☆ Pin";
+    el.status.textContent = "Saved · " + fullTime(note.updated);
+    el.status.classList.add("saved");
+  }
+
+  /* ----------------------------------------------------------------------
+     Actions: CRUD
+     ---------------------------------------------------------------------- */
+
+  function createNote() {
+    var now = Date.now();
+    var note = normalizeNote({ id: uid(), title: "", body: "", created: now, updated: now });
+    notes.unshift(note);
+    currentId = note.id;
+    persist();
+    render();
+    closeNav();
+    el.titleInput.focus();
+    showToast("New note created");
+  }
+
+  function selectNote(id) {
+    // Flush any pending save before switching.
+    flushSave();
+    currentId = id;
+    render();
+    closeNav();
+  }
+
+  // Debounced auto-save from the editor inputs.
+  function scheduleSave() {
+    el.status.textContent = "Saving…";
+    el.status.classList.remove("saved");
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(flushSave, AUTOSAVE_MS);
+  }
+
+  function flushSave() {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+    var note = getNote(currentId);
+    if (!note) return;
+
+    var newTitle = el.titleInput.value;
+    var newBody = el.bodyInput.value;
+    var newTags = parseTags(el.tagsInput.value);
+
+    var changed = note.title !== newTitle ||
+                  note.body !== newBody ||
+                  note.tags.join(",") !== newTags.join(",");
+
+    if (changed) {
+      note.title = newTitle;
+      note.body = newBody;
+      note.tags = newTags;
+      note.updated = Date.now();
+      persist();
+    }
+    // Re-render list (snippet/time/tag chips may have changed) but keep editor inputs.
+    renderCount();
+    renderTagFilter();
+    renderList();
+    el.status.textContent = "Saved · " + fullTime(note.updated);
+    el.status.classList.add("saved");
+  }
+
+  function deleteNote() {
+    var note = getNote(currentId);
+    if (!note) return;
+    var label = note.title ? '"' + note.title + '"' : "this untitled note";
+    if (!confirm("Delete " + label + "? This cannot be undone.")) return;
+    notes = notes.filter(function (n) { return n.id !== note.id; });
+    currentId = notes.length ? visibleNotes()[0] && visibleNotes()[0].id : null;
+    if (currentId === undefined) currentId = null;
+    persist();
+    render();
+    showToast("Note deleted");
+  }
+
+  function duplicateNote() {
+    var note = getNote(currentId);
+    if (!note) return;
+    flushSave();
+    var now = Date.now();
+    var copy = normalizeNote({
+      id: uid(),
+      title: (note.title || "Untitled") + " (copy)",
+      body: note.body,
+      tags: note.tags.slice(),
+      pinned: false,
+      created: now,
+      updated: now
+    });
+    notes.unshift(copy);
+    currentId = copy.id;
+    persist();
+    render();
+    showToast("Note duplicated");
+  }
+
+  function togglePin() {
+    var note = getNote(currentId);
+    if (!note) return;
+    note.pinned = !note.pinned;
+    note.updated = note.updated; // pin change shouldn't bump edited time
+    persist();
+    render();
+    showToast(note.pinned ? "Pinned to top" : "Unpinned");
+  }
+
+  /* ----------------------------------------------------------------------
+     Export / Import
+     ---------------------------------------------------------------------- */
+
+  function download(filename, text, mime) {
+    var blob = new Blob([text], { type: mime || "text/plain" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    // Release the object URL shortly after.
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
+  function exportAll() {
+    if (notes.length === 0) { showToast("Nothing to export"); return; }
+    flushSave();
+    var payload = {
+      app: "notes",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      notes: notes
+    };
+    var stamp = new Date().toISOString().slice(0, 10);
+    download("notes-backup-" + stamp + ".json", JSON.stringify(payload, null, 2), "application/json");
+    showToast("Exported " + notes.length + " notes");
+  }
+
+  function exportTxt() {
+    var note = getNote(currentId);
+    if (!note) return;
+    flushSave();
+    var lines = [];
+    lines.push(note.title || "Untitled");
+    if (note.tags.length) lines.push("Tags: " + note.tags.join(", "));
+    lines.push("Last edited: " + fullTime(note.updated));
+    lines.push("");
+    lines.push(note.body || "");
+    var safeName = (note.title || "note").replace(/[^\w\- ]+/g, "_").trim() || "note";
+    download(safeName + ".txt", lines.join("\n"), "text/plain");
+    showToast("Exported as .txt");
+  }
+
+  function handleImportFile(file) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      try {
+        var data = JSON.parse(reader.result);
+        var incoming = Array.isArray(data) ? data : (data && data.notes);
+        if (!Array.isArray(incoming)) throw new Error("Invalid format");
+        var clean = incoming.map(normalizeNote);
+        if (clean.length === 0) { showToast("No notes found in file"); return; }
+
+        var mode = confirm(
+          "Import " + clean.length + " notes.\n\n" +
+          "OK = MERGE with your current notes.\n" +
+          "Cancel = REPLACE everything (your current notes will be deleted)."
+        );
+
+        if (mode) {
+          // Merge: keep existing, add incoming whose ids don't already exist;
+          // for duplicate ids, give the imported note a fresh id so nothing is lost.
+          var existingIds = {};
+          notes.forEach(function (n) { existingIds[n.id] = true; });
+          clean.forEach(function (n) {
+            if (existingIds[n.id]) n.id = uid();
+            existingIds[n.id] = true;
+            notes.push(n);
+          });
+          showToast("Merged " + clean.length + " notes");
+        } else {
+          if (!confirm("Really REPLACE all current notes? This cannot be undone.")) {
+            showToast("Import cancelled");
+            return;
+          }
+          notes = clean;
+          currentId = null;
+          showToast("Replaced with " + clean.length + " notes");
+        }
+        persist();
+        render();
+      } catch (e) {
+        console.error(e);
+        alert("Could not import: the file is not a valid notes backup.");
+      }
+    };
+    reader.onerror = function () { alert("Could not read the file."); };
+    reader.readAsText(file);
+  }
+
+  /* ----------------------------------------------------------------------
+     Mobile nav helpers
+     ---------------------------------------------------------------------- */
+  function toggleNav() { el.app.classList.toggle("nav-open"); }
+  function closeNav() { el.app.classList.remove("nav-open"); }
+
+  /* ----------------------------------------------------------------------
+     Event wiring
+     ---------------------------------------------------------------------- */
+
+  el.newBtn.addEventListener("click", createNote);
+  el.emptyNewBtn.addEventListener("click", createNote);
+
+  el.searchInput.addEventListener("input", function () {
+    searchTerm = el.searchInput.value;
+    renderList();
+  });
+
+  el.sortSelect.addEventListener("change", function () {
+    sortMode = el.sortSelect.value;
+    renderList();
+  });
+
+  el.tagFilter.addEventListener("click", function (e) {
+    var chip = e.target.closest(".chip");
+    if (!chip) return;
+    var t = chip.getAttribute("data-tag");
+    activeTag = t ? t : null;
+    renderTagFilter();
+    renderList();
+  });
+
+  el.noteList.addEventListener("click", function (e) {
+    var card = e.target.closest(".note-card");
+    if (!card) return;
+    selectNote(card.getAttribute("data-id"));
+  });
+
+  // Editor inputs -> debounced save.
+  el.titleInput.addEventListener("input", scheduleSave);
+  el.tagsInput.addEventListener("input", scheduleSave);
+  el.bodyInput.addEventListener("input", scheduleSave);
+  // Save immediately when focus leaves a field.
+  el.titleInput.addEventListener("blur", flushSave);
+  el.tagsInput.addEventListener("blur", flushSave);
+  el.bodyInput.addEventListener("blur", flushSave);
+
+  el.pinBtn.addEventListener("click", togglePin);
+  el.dupBtn.addEventListener("click", duplicateNote);
+  el.txtBtn.addEventListener("click", exportTxt);
+  el.delBtn.addEventListener("click", deleteNote);
+
+  el.exportBtn.addEventListener("click", exportAll);
+  el.importBtn.addEventListener("click", function () { el.importFile.click(); });
+  el.importFile.addEventListener("change", function () {
+    var f = el.importFile.files && el.importFile.files[0];
+    if (f) handleImportFile(f);
+    el.importFile.value = ""; // allow re-importing the same file later
+  });
+
+  el.menuToggle.addEventListener("click", toggleNav);
+  el.backdrop.addEventListener("click", closeNav);
+
+  // Keyboard shortcut: Ctrl/Cmd+N for a new note.
+  document.addEventListener("keydown", function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "n") {
+      e.preventDefault();
+      createNote();
+    }
+  });
+
+  // Save pending edits if the page is being closed/hidden.
+  window.addEventListener("beforeunload", flushSave);
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "hidden") flushSave();
+  });
+
+  /* ----------------------------------------------------------------------
+     Boot
+     ---------------------------------------------------------------------- */
+  load();
+  // Refresh relative timestamps in the list every 60s.
+  setInterval(function () { if (currentId === null || notes.length) renderList(); }, 60000);
+  render();
+})();
+</script>
+  <footer class="site-footer" style="text-align:center;padding:24px 16px;margin-top:32px;color:#94a3b8;font-size:13px;line-height:1.5;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">&copy; 2025&ndash;2026 <a href="https://github.com/setnev" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:none">Steven Peterson</a></footer>
+</body>
+</html>
