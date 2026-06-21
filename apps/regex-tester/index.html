@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Regex Tester</title>
+  <style>
+    /* ---------------------------------------------------------------
+       All styles live here — no external stylesheets, no web fonts.
+       Palette matches the rest of the single-page-apps repo.
+    --------------------------------------------------------------- */
+    :root {
+      color-scheme: dark;
+      --bg: #0f172a;        /* page background        */
+      --panel: #1e293b;     /* primary panels         */
+      --panel-2: #273449;   /* nested / input panels  */
+      --accent: #38bdf8;    /* interactive accent     */
+      --text: #e2e8f0;      /* default text           */
+      --muted: #94a3b8;     /* secondary text         */
+      --good: #34d399;      /* success                */
+      --warn: #fbbf24;      /* warning                */
+      --bad: #f87171;       /* error                  */
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      padding: 1.5rem;
+      line-height: 1.5;
+    }
+    .wrap { max-width: 920px; margin: 0 auto; }
+
+    header h1 { margin: 0 0 0.2rem; font-size: 1.5rem; }
+    header p.sub { margin: 0 0 1.4rem; color: var(--muted); font-size: 0.9rem; }
+
+    .panel {
+      background: var(--panel);
+      border-radius: 16px;
+      padding: 1.1rem 1.2rem;
+      margin-bottom: 1.1rem;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    }
+    .panel h2 {
+      margin: 0 0 0.7rem;
+      font-size: 0.95rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+    }
+
+    /* --- Pattern input row (looks like /pattern/flags) --- */
+    .pattern-row {
+      display: flex;
+      align-items: stretch;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .pattern-box {
+      flex: 1 1 280px;
+      display: flex;
+      align-items: center;
+      background: var(--panel-2);
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 0 0.6rem;
+      transition: border-color 0.15s ease;
+    }
+    .pattern-box.invalid { border-color: var(--bad); }
+    .pattern-box .slash { color: var(--muted); font-family: var(--mono); user-select: none; }
+    #pattern {
+      flex: 1;
+      border: none;
+      outline: none;
+      background: transparent;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 1rem;
+      padding: 0.7rem 0.4rem;
+      min-width: 0;
+    }
+    #pattern::placeholder { color: var(--muted); }
+
+    /* --- Flag checkboxes --- */
+    .flags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      align-items: center;
+    }
+    .flag {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      background: var(--panel-2);
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 0.35rem 0.6rem;
+      font-family: var(--mono);
+      font-size: 0.9rem;
+      cursor: pointer;
+      user-select: none;
+    }
+    .flag input { accent-color: var(--accent); width: 1rem; height: 1rem; cursor: pointer; }
+    .flag .desc { color: var(--muted); font-family: system-ui, sans-serif; font-size: 0.78rem; }
+
+    /* --- Error message --- */
+    .error {
+      color: var(--bad);
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      margin-top: 0.6rem;
+      min-height: 1.1em;
+      word-break: break-word;
+    }
+
+    /* ---------------------------------------------------------------
+       Highlight overlay technique:
+       a transparent <textarea> sits exactly on top of a <pre> that
+       holds an HTML copy of the same text with <mark> spans. The two
+       share identical typography/box metrics so they line up pixel
+       for pixel, and the <pre> scrolls in sync with the textarea.
+    --------------------------------------------------------------- */
+    .editor {
+      position: relative;
+      border-radius: 10px;
+      border: 1px solid #334155;
+      background: var(--panel-2);
+      overflow: hidden;
+    }
+    .editor-shared {
+      /* identical metrics for the overlay <pre> and the <textarea> */
+      margin: 0;
+      padding: 0.8rem;
+      font-family: var(--mono);
+      font-size: 0.95rem;
+      line-height: 1.55;
+      letter-spacing: normal;
+      tab-size: 4;
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+      word-break: break-word;
+    }
+    #backdrop {
+      position: absolute;
+      inset: 0;
+      color: var(--text);
+      overflow: auto;
+      pointer-events: none;
+    }
+    #testText {
+      position: relative;
+      display: block;
+      width: 100%;
+      min-height: 200px;
+      resize: vertical;
+      border: none;
+      outline: none;
+      background: transparent;
+      color: transparent;       /* text shown by backdrop; caret stays visible */
+      caret-color: var(--text);
+    }
+    /* Match highlight colours. Adjacent matches alternate so they stay
+       visually distinct. Capture groups get a brighter underline. */
+    #backdrop mark {
+      border-radius: 3px;
+      color: var(--text);
+      background: rgba(56, 189, 248, 0.30);   /* accent tint */
+    }
+    #backdrop mark.alt { background: rgba(52, 211, 153, 0.28); } /* good tint */
+    #backdrop mark.group { box-shadow: inset 0 -2px 0 var(--warn); }
+
+    /* --- Match summary + list --- */
+    .count {
+      font-family: var(--mono);
+      font-size: 0.9rem;
+      color: var(--good);
+      margin-bottom: 0.7rem;
+    }
+    .count.zero { color: var(--muted); }
+    .matches { display: flex; flex-direction: column; gap: 0.55rem; }
+    .match-card {
+      background: var(--panel-2);
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 0.6rem 0.75rem;
+    }
+    .match-head {
+      display: flex;
+      gap: 0.6rem;
+      align-items: baseline;
+      flex-wrap: wrap;
+    }
+    .match-idx {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+    .match-text {
+      font-family: var(--mono);
+      font-size: 0.92rem;
+      word-break: break-word;
+    }
+    .groups {
+      margin: 0.5rem 0 0;
+      padding: 0;
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      border-top: 1px dashed #3b4a61;
+      padding-top: 0.5rem;
+    }
+    .groups li { font-family: var(--mono); font-size: 0.82rem; color: var(--muted); }
+    .groups li b { color: var(--warn); font-weight: 600; }
+    .groups li .val { color: var(--text); }
+    .empty-note { color: var(--muted); font-size: 0.88rem; }
+
+    /* --- Cheat sheet (collapsible) --- */
+    details.cheat summary {
+      cursor: pointer;
+      font-size: 0.95rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    details.cheat summary::-webkit-details-marker { display: none; }
+    details.cheat summary::before { content: "▸"; color: var(--accent); transition: transform 0.15s ease; }
+    details.cheat[open] summary::before { transform: rotate(90deg); }
+    .cheat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 0.4rem 1.2rem;
+      margin-top: 0.9rem;
+    }
+    .cheat-grid div {
+      display: flex;
+      gap: 0.6rem;
+      font-size: 0.85rem;
+      align-items: baseline;
+    }
+    .cheat-grid code {
+      font-family: var(--mono);
+      color: var(--accent);
+      background: var(--panel-2);
+      padding: 0.05rem 0.35rem;
+      border-radius: 5px;
+      white-space: nowrap;
+    }
+    .cheat-grid span { color: var(--muted); }
+
+    footer { color: var(--muted); font-size: 0.78rem; text-align: center; margin: 1.5rem 0 0.5rem; }
+
+    @media (max-width: 560px) {
+      body { padding: 1rem; }
+      .flag .desc { display: none; } /* keep flag chips compact on phones */
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>🔍 Regex Tester</h1>
+      <p class="sub">Build and debug regular expressions with live highlighting. Runs entirely in your browser.</p>
+    </header>
+
+    <!-- ===== Pattern + flags ===== -->
+    <section class="panel">
+      <h2>Pattern</h2>
+      <div class="pattern-row">
+        <div class="pattern-box" id="patternBox">
+          <span class="slash">/</span>
+          <input id="pattern" type="text" spellcheck="false" autocapitalize="off"
+                 autocomplete="off" placeholder="e.g. (\w+)@(\w+\.\w+)" />
+          <span class="slash" id="flagSlash">/</span>
+        </div>
+        <div class="flags" id="flags">
+          <!-- Each checkbox toggles one regex flag. -->
+          <label class="flag"><input type="checkbox" value="g" checked />g <span class="desc">global</span></label>
+          <label class="flag"><input type="checkbox" value="i" />i <span class="desc">ignore case</span></label>
+          <label class="flag"><input type="checkbox" value="m" />m <span class="desc">multiline</span></label>
+          <label class="flag"><input type="checkbox" value="s" />s <span class="desc">dotall</span></label>
+          <label class="flag"><input type="checkbox" value="u" />u <span class="desc">unicode</span></label>
+          <label class="flag"><input type="checkbox" value="y" />y <span class="desc">sticky</span></label>
+        </div>
+      </div>
+      <div class="error" id="error" role="alert"></div>
+    </section>
+
+    <!-- ===== Test string with live highlight overlay ===== -->
+    <section class="panel">
+      <h2>Test String</h2>
+      <div class="editor">
+        <!-- backdrop renders the highlighted copy; textarea captures input -->
+        <pre id="backdrop" class="editor-shared" aria-hidden="true"></pre>
+        <textarea id="testText" class="editor-shared" spellcheck="false"
+                  placeholder="Paste or type the text you want to match against…"></textarea>
+      </div>
+    </section>
+
+    <!-- ===== Matches ===== -->
+    <section class="panel">
+      <h2>Matches</h2>
+      <div class="count zero" id="count">No matches yet.</div>
+      <div class="matches" id="matches"></div>
+    </section>
+
+    <!-- ===== Cheat sheet ===== -->
+    <section class="panel">
+      <details class="cheat">
+        <summary>Regex cheat sheet</summary>
+        <div class="cheat-grid" id="cheatGrid"></div>
+      </details>
+    </section>
+
+    <footer>Privacy-first · no network calls · single self-contained file</footer>
+  </div>
+
+  <script>
+    // =====================================================================
+    //  Regex Tester — all logic lives here, no external dependencies.
+    // =====================================================================
+
+    const els = {
+      pattern: document.getElementById("pattern"),
+      patternBox: document.getElementById("patternBox"),
+      flagSlash: document.getElementById("flagSlash"),
+      flags: document.getElementById("flags"),
+      error: document.getElementById("error"),
+      testText: document.getElementById("testText"),
+      backdrop: document.getElementById("backdrop"),
+      count: document.getElementById("count"),
+      matches: document.getElementById("matches"),
+      cheatGrid: document.getElementById("cheatGrid"),
+    };
+
+    const STORAGE_KEY = "regex-tester-state-v1";
+
+    // ---- Flag handling -------------------------------------------------
+    const flagBoxes = [...els.flags.querySelectorAll("input[type=checkbox]")];
+
+    function currentFlags() {
+      return flagBoxes.filter(b => b.checked).map(b => b.value).join("");
+    }
+
+    // ---- HTML escaping (so test text can never inject markup) ----------
+    function escapeHTML(str) {
+      return str.replace(/[&<>"']/g, ch => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      }[ch]));
+    }
+
+    // ---- Core: run the regex and update the UI ------------------------
+    function update() {
+      const source = els.pattern.value;
+      const flags = currentFlags();
+      const text = els.testText.value;
+      els.flagSlash.textContent = "/" + flags;
+
+      // Empty pattern: clear everything, no error.
+      if (source === "") {
+        els.patternBox.classList.remove("invalid");
+        els.error.textContent = "";
+        renderHighlights(text, []);
+        renderMatches([], text);
+        save();
+        return;
+      }
+
+      // Try to compile. Invalid patterns surface a clear red message.
+      let re;
+      try {
+        re = new RegExp(source, flags);
+        els.patternBox.classList.remove("invalid");
+        els.error.textContent = "";
+      } catch (err) {
+        els.patternBox.classList.add("invalid");
+        els.error.textContent = "Invalid regex: " + err.message;
+        renderHighlights(text, []);        // keep showing plain text
+        renderMatches(null, text);          // null => "fix the pattern"
+        save();
+        return;
+      }
+
+      const matches = collectMatches(re, text);
+      renderHighlights(text, matches);
+      renderMatches(matches, text);
+      save();
+    }
+
+    // ---- Gather all matches safely ------------------------------------
+    // Returns an array of { index, end, text, groups[], named{} }.
+    // Guards against infinite loops on zero-width global matches.
+    function collectMatches(re, text) {
+      const out = [];
+      const MAX = 100000; // hard cap so a pathological pattern can't hang us
+
+      if (re.global || re.sticky) {
+        re.lastIndex = 0;
+        let m;
+        while ((m = re.exec(text)) !== null) {
+          out.push(buildMatch(m));
+          // Zero-width match: nudge lastIndex forward by one code unit,
+          // otherwise exec() returns the same empty match forever.
+          if (m.index === re.lastIndex) re.lastIndex++;
+          if (out.length >= MAX) break;
+        }
+      } else {
+        // Non-global: at most one match.
+        const m = re.exec(text);
+        if (m) out.push(buildMatch(m));
+      }
+      return out;
+    }
+
+    function buildMatch(m) {
+      return {
+        index: m.index,
+        end: m.index + m[0].length,
+        text: m[0],
+        // m[1..] are the numbered capture groups (may be undefined).
+        groups: m.slice(1),
+        named: m.groups ? { ...m.groups } : null,
+      };
+    }
+
+    // ---- Highlight overlay -------------------------------------------
+    // Rebuild the backdrop HTML wrapping each match range in <mark>.
+    function renderHighlights(text, matches) {
+      if (matches.length === 0) {
+        els.backdrop.textContent = text;
+        // A trailing newline needs a guard so the box height matches.
+        if (text.endsWith("\n")) els.backdrop.append(document.createTextNode("​"));
+        syncScroll();
+        return;
+      }
+
+      let html = "";
+      let cursor = 0;
+      matches.forEach((mt, i) => {
+        // Plain text before this match.
+        html += escapeHTML(text.slice(cursor, mt.index));
+        const cls = ["", "alt"][i % 2] + (mt.groups.length ? " group" : "");
+        const piece = escapeHTML(text.slice(mt.index, mt.end)) || "&#8203;"; // show zero-width
+        html += `<mark class="${cls.trim()}">${piece}</mark>`;
+        cursor = mt.end;
+      });
+      html += escapeHTML(text.slice(cursor));
+      if (text.endsWith("\n")) html += "​";
+      els.backdrop.innerHTML = html;
+      syncScroll();
+    }
+
+    function syncScroll() {
+      els.backdrop.scrollTop = els.testText.scrollTop;
+      els.backdrop.scrollLeft = els.testText.scrollLeft;
+    }
+
+    // ---- Match list ---------------------------------------------------
+    function renderMatches(matches, text) {
+      els.matches.innerHTML = "";
+
+      if (matches === null) {
+        els.count.className = "count zero";
+        els.count.textContent = "Fix the pattern to see matches.";
+        return;
+      }
+
+      const n = matches.length;
+      els.count.className = "count" + (n === 0 ? " zero" : "");
+      els.count.textContent =
+        n === 0 ? "0 matches." : `${n} match${n === 1 ? "" : "es"} found.`;
+
+      if (n === 0) {
+        if (els.pattern.value && text) {
+          const note = document.createElement("div");
+          note.className = "empty-note";
+          note.textContent = "The pattern is valid but didn't match the test string.";
+          els.matches.appendChild(note);
+        }
+        return;
+      }
+
+      matches.forEach((mt, i) => {
+        const card = document.createElement("div");
+        card.className = "match-card";
+
+        const head = document.createElement("div");
+        head.className = "match-head";
+
+        const idx = document.createElement("span");
+        idx.className = "match-idx";
+        idx.textContent = `#${i + 1} · at ${mt.index}`;
+
+        const txt = document.createElement("span");
+        txt.className = "match-text";
+        txt.textContent = mt.text === "" ? "(empty match)" : mt.text;
+
+        head.append(idx, txt);
+        card.appendChild(head);
+
+        // Numbered + named capture groups, if any.
+        const hasNumbered = mt.groups.length > 0;
+        const hasNamed = mt.named && Object.keys(mt.named).length > 0;
+        if (hasNumbered || hasNamed) {
+          const list = document.createElement("ul");
+          list.className = "groups";
+
+          mt.groups.forEach((g, gi) => {
+            const li = document.createElement("li");
+            const label = document.createElement("b");
+            label.textContent = `Group ${gi + 1}`;
+            const val = document.createElement("span");
+            val.className = "val";
+            val.textContent = g === undefined ? " (no match)" : " " + (g === "" ? "(empty)" : g);
+            li.append(label, val);
+            list.appendChild(li);
+          });
+
+          if (hasNamed) {
+            Object.entries(mt.named).forEach(([name, g]) => {
+              const li = document.createElement("li");
+              const label = document.createElement("b");
+              label.textContent = `<${name}>`;
+              const val = document.createElement("span");
+              val.className = "val";
+              val.textContent = g === undefined ? " (no match)" : " " + (g === "" ? "(empty)" : g);
+              li.append(label, val);
+              list.appendChild(li);
+            });
+          }
+
+          card.appendChild(list);
+        }
+
+        els.matches.appendChild(card);
+      });
+    }
+
+    // ---- Cheat sheet content -----------------------------------------
+    const CHEAT = [
+      [".", "any char (except newline)"],
+      ["\\d \\D", "digit / non-digit"],
+      ["\\w \\W", "word char / non-word"],
+      ["\\s \\S", "whitespace / non-ws"],
+      ["\\b \\B", "word boundary / not"],
+      ["^ $", "start / end of line"],
+      ["[abc]", "any of a, b, c"],
+      ["[^abc]", "none of a, b, c"],
+      ["[a-z]", "range a to z"],
+      ["a|b", "a or b"],
+      ["( )", "capture group"],
+      ["(?: )", "non-capturing group"],
+      ["(?<name> )", "named group"],
+      ["a*", "0 or more"],
+      ["a+", "1 or more"],
+      ["a?", "0 or 1 (optional)"],
+      ["a{2,5}", "2 to 5 times"],
+      ["a*?", "lazy (fewest)"],
+      ["(?= )", "lookahead"],
+      ["(?! )", "negative lookahead"],
+      ["(?<= )", "lookbehind"],
+      ["\\1", "backreference"],
+    ];
+    function buildCheatSheet() {
+      CHEAT.forEach(([token, desc]) => {
+        const row = document.createElement("div");
+        const code = document.createElement("code");
+        code.textContent = token;
+        const span = document.createElement("span");
+        span.textContent = desc;
+        row.append(code, span);
+        els.cheatGrid.appendChild(row);
+      });
+    }
+
+    // ---- localStorage persistence ------------------------------------
+    function save() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          pattern: els.pattern.value,
+          flags: currentFlags(),
+          text: els.testText.value,
+        }));
+      } catch { /* storage may be unavailable on file:// in some browsers */ }
+    }
+
+    function restore() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const s = JSON.parse(raw);
+        if (typeof s.pattern === "string") els.pattern.value = s.pattern;
+        if (typeof s.text === "string") els.testText.value = s.text;
+        if (typeof s.flags === "string") {
+          flagBoxes.forEach(b => { b.checked = s.flags.includes(b.value); });
+        }
+      } catch { /* ignore corrupt state */ }
+    }
+
+    // ---- Wire up events ----------------------------------------------
+    els.pattern.addEventListener("input", update);
+    els.testText.addEventListener("input", update);
+    els.testText.addEventListener("scroll", syncScroll);
+    flagBoxes.forEach(b => b.addEventListener("change", update));
+
+    // ---- Init ---------------------------------------------------------
+    buildCheatSheet();
+    restore();
+    update();
+  </script>
+  <footer class="site-footer" style="text-align:center;padding:24px 16px;margin-top:32px;color:#94a3b8;font-size:13px;line-height:1.5;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">&copy; 2025&ndash;2026 <a href="https://github.com/setnev" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:none">Steven Peterson</a></footer>
+</body>
+</html>
