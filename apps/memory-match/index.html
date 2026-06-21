@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>🃏 Memory Match</title>
+<style>
+  /* ---------- Theme variables ---------- */
+  :root {
+    --bg: #0f172a;
+    --panel: #1e293b;
+    --panel-2: #273449;
+    --accent: #38bdf8;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --good: #34d399;
+    --radius: 14px;
+    --font: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    min-height: 100vh;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px;
+    /* a subtle colorful glow in the background for fun */
+    background-image:
+      radial-gradient(circle at 15% 10%, rgba(56, 189, 248, 0.12), transparent 40%),
+      radial-gradient(circle at 85% 90%, rgba(52, 211, 153, 0.12), transparent 40%);
+  }
+
+  /* ---------- Header ---------- */
+  header {
+    width: 100%;
+    max-width: 720px;
+    text-align: center;
+    margin-bottom: 14px;
+  }
+
+  h1 {
+    font-size: 1.8rem;
+    margin: 0 0 4px;
+    background: linear-gradient(90deg, var(--accent), var(--good));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .subtitle {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin: 0;
+  }
+
+  /* ---------- Control panel ---------- */
+  .panel {
+    width: 100%;
+    max-width: 720px;
+    background: var(--panel);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  }
+
+  .controls,
+  .stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+  }
+
+  label.field {
+    display: flex;
+    flex-direction: column;
+    font-size: 0.7rem;
+    color: var(--muted);
+    gap: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  select, button {
+    font-family: var(--font);
+    font-size: 0.9rem;
+    border-radius: 10px;
+    border: 1px solid var(--panel-2);
+    background: var(--panel-2);
+    color: var(--text);
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: transform 0.1s ease, background 0.2s ease;
+  }
+
+  select:hover, button:hover { background: #314056; }
+  button:active { transform: scale(0.96); }
+
+  button.primary {
+    background: var(--accent);
+    color: #06283d;
+    font-weight: 700;
+    border-color: var(--accent);
+  }
+  button.primary:hover { background: #5cc8fb; }
+
+  /* Stat boxes */
+  .stat {
+    background: var(--panel-2);
+    border-radius: 10px;
+    padding: 6px 12px;
+    text-align: center;
+    min-width: 64px;
+  }
+  .stat .num {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .stat .lbl {
+    font-size: 0.6rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .stat.best .num { color: var(--good); }
+
+  /* ---------- Game board ---------- */
+  .board {
+    display: grid;
+    gap: 10px;
+    width: 100%;
+    max-width: 720px;
+    /* columns set dynamically via inline style */
+  }
+
+  /* Each card slot keeps a square shape */
+  .card {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    perspective: 800px;     /* gives the 3D flip depth */
+    cursor: pointer;
+  }
+
+  /* Inner wrapper that actually rotates */
+  .card-inner {
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+    transition: transform 0.45s cubic-bezier(0.4, 0.2, 0.2, 1);
+    border-radius: var(--radius);
+  }
+
+  /* Flip the card when it carries .flipped or .matched */
+  .card.flipped .card-inner,
+  .card.matched .card-inner {
+    transform: rotateY(180deg);
+  }
+
+  /* Shared face styles */
+  .face {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    user-select: none;
+  }
+
+  /* Back of the card (shown when face-down) */
+  .face-back {
+    background:
+      repeating-linear-gradient(45deg, #1d4ed8 0 10px, #2563eb 10px 20px);
+    border: 2px solid #3b82f6;
+    box-shadow: inset 0 0 0 4px rgba(255, 255, 255, 0.06);
+  }
+  .face-back::after {
+    content: "❓";
+    font-size: clamp(1.4rem, 6vw, 2.4rem);
+    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.4));
+  }
+
+  /* Front of the card (the emoji) */
+  .face-front {
+    background: var(--panel-2);
+    border: 2px solid #3b4a63;
+    transform: rotateY(180deg);
+    font-size: clamp(1.6rem, 8vw, 3rem);
+  }
+
+  /* Matched cards get a green highlight */
+  .card.matched .face-front {
+    background: #14342a;
+    border-color: var(--good);
+    box-shadow: 0 0 12px rgba(52, 211, 153, 0.4);
+  }
+
+  /* ---------- Win overlay ---------- */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.85);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 10;
+  }
+  .overlay.show { display: flex; }
+
+  .overlay-card {
+    background: var(--panel);
+    border-radius: var(--radius);
+    padding: 28px 32px;
+    text-align: center;
+    max-width: 360px;
+    width: 100%;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+    animation: pop 0.3s ease;
+  }
+  @keyframes pop {
+    from { transform: scale(0.85); opacity: 0; }
+    to   { transform: scale(1);    opacity: 1; }
+  }
+
+  .overlay-card h2 { margin: 0 0 6px; color: var(--good); font-size: 1.6rem; }
+  .overlay-card p  { color: var(--muted); margin: 6px 0; }
+  .overlay-card .result-line { color: var(--text); font-size: 1.05rem; }
+  .overlay-card .result-line b { color: var(--accent); }
+  .new-best {
+    color: var(--good);
+    font-weight: 700;
+    margin-top: 8px;
+  }
+  .overlay-card button { margin-top: 16px; }
+
+  footer {
+    margin-top: 20px;
+    color: var(--muted);
+    font-size: 0.75rem;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>🃏 Memory Match</h1>
+    <p class="subtitle">Flip the cards, find every matching pair.</p>
+  </header>
+
+  <!-- Control + stats panel -->
+  <div class="panel">
+    <div class="controls">
+      <label class="field">
+        Difficulty
+        <select id="difficulty">
+          <option value="4x4">Easy · 4 × 4</option>
+          <option value="6x4">Medium · 6 × 4</option>
+          <option value="6x6">Hard · 6 × 6</option>
+        </select>
+      </label>
+      <button id="restartBtn" class="primary">New Game</button>
+    </div>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="num" id="moves">0</div>
+        <div class="lbl">Moves</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="timer">0:00</div>
+        <div class="lbl">Time</div>
+      </div>
+      <div class="stat best">
+        <div class="num" id="best">—</div>
+        <div class="lbl">Best</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Game board (cards injected by JS) -->
+  <div class="board" id="board" aria-label="Memory match game board"></div>
+
+  <!-- Win overlay -->
+  <div class="overlay" id="overlay">
+    <div class="overlay-card">
+      <h2>🎉 You Win!</h2>
+      <p class="result-line">Time: <b id="finalTime">0:00</b></p>
+      <p class="result-line">Moves: <b id="finalMoves">0</b></p>
+      <p class="new-best" id="newBest" style="display:none;">🏆 New best score!</p>
+      <button id="playAgainBtn" class="primary">Play Again</button>
+    </div>
+  </div>
+
+  <footer>Runs 100% offline in your browser · scores saved locally</footer>
+
+<script>
+"use strict";
+
+/* =========================================================
+   Memory Match — single-file vanilla JS game
+   ========================================================= */
+
+/* A pool of fun emoji used for card faces.
+   We pick however many distinct ones a given grid needs. */
+const EMOJI_POOL = [
+  "🍎","🍌","🍇","🍒","🍓","🍑","🍍","🥝",
+  "🍉","🥥","🌮","🍕","🍔","🌭","🍩","🍪",
+  "🐶","🐱","🦊","🐼","🐸","🐵","🦄","🐙",
+  "🚀","🎸","⚽","🎲","🎯","🎈","💎","🌈",
+  "⭐","🔥","🌙","🍄","🌵","🐝","🦋","🐬"
+];
+
+/* Available difficulties: [columns, rows].
+   Product is always even so cards pair up cleanly. */
+const DIFFICULTIES = {
+  "4x4": { cols: 4, rows: 4 },
+  "6x4": { cols: 6, rows: 4 },
+  "6x6": { cols: 6, rows: 6 }
+};
+
+/* ---------- DOM references ---------- */
+const boardEl      = document.getElementById("board");
+const movesEl      = document.getElementById("moves");
+const timerEl      = document.getElementById("timer");
+const bestEl       = document.getElementById("best");
+const difficultyEl = document.getElementById("difficulty");
+const restartBtn   = document.getElementById("restartBtn");
+const overlayEl    = document.getElementById("overlay");
+const finalTimeEl  = document.getElementById("finalTime");
+const finalMovesEl = document.getElementById("finalMoves");
+const newBestEl    = document.getElementById("newBest");
+const playAgainBtn = document.getElementById("playAgainBtn");
+
+/* ---------- Game state ---------- */
+let firstCard   = null;   // first flipped card awaiting a match
+let secondCard  = null;   // second flipped card
+let lockBoard   = false;  // true while two cards are being compared
+let moves       = 0;
+let matchedPairs = 0;
+let totalPairs  = 0;
+
+let timerId     = null;   // setInterval handle
+let startTime   = 0;      // epoch ms when timer started
+let elapsed     = 0;      // seconds elapsed
+let timerRunning = false;
+
+/* ---------- Utility: Fisher–Yates shuffle (in place) ---------- */
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+/* ---------- Utility: format seconds as M:SS ---------- */
+function formatTime(totalSeconds) {
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return m + ":" + String(s).padStart(2, "0");
+}
+
+/* ---------- localStorage best-score helpers ---------- */
+function bestKey(diff) {
+  return "memoryMatch.best." + diff;
+}
+
+/* Returns the stored best record {moves, time} or null. */
+function getBest(diff) {
+  try {
+    const raw = localStorage.getItem(bestKey(diff));
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null; // storage unavailable / parse error -> treat as no record
+  }
+}
+
+/* Saves a best record if it beats the existing one.
+   "Better" = fewer moves; ties broken by faster time.
+   Returns true if a new record was set. */
+function maybeSaveBest(diff, record) {
+  const current = getBest(diff);
+  const isBetter =
+    !current ||
+    record.moves < current.moves ||
+    (record.moves === current.moves && record.time < current.time);
+
+  if (isBetter) {
+    try {
+      localStorage.setItem(bestKey(diff), JSON.stringify(record));
+    } catch (e) { /* ignore quota / disabled storage */ }
+    return true;
+  }
+  return false;
+}
+
+/* Updates the "Best" stat box for the current difficulty. */
+function renderBest() {
+  const diff = difficultyEl.value;
+  const best = getBest(diff);
+  bestEl.textContent = best
+    ? best.moves + " mv · " + formatTime(best.time)
+    : "—";
+}
+
+/* ---------- Timer control ---------- */
+function startTimer() {
+  if (timerRunning) return;
+  timerRunning = true;
+  startTime = Date.now() - elapsed * 1000;
+  timerId = setInterval(() => {
+    elapsed = Math.floor((Date.now() - startTime) / 1000);
+    timerEl.textContent = formatTime(elapsed);
+  }, 250);
+}
+
+function stopTimer() {
+  timerRunning = false;
+  if (timerId) clearInterval(timerId);
+  timerId = null;
+}
+
+/* ---------- Build / reset the board ---------- */
+function newGame() {
+  // Reset state
+  stopTimer();
+  firstCard = secondCard = null;
+  lockBoard = false;
+  moves = 0;
+  matchedPairs = 0;
+  elapsed = 0;
+  timerRunning = false;
+
+  movesEl.textContent = "0";
+  timerEl.textContent = "0:00";
+  overlayEl.classList.remove("show");
+  renderBest();
+
+  // Determine grid dimensions
+  const { cols, rows } = DIFFICULTIES[difficultyEl.value];
+  totalPairs = (cols * rows) / 2;
+
+  // Pick distinct emoji and create matching pairs
+  const chosen = shuffle(EMOJI_POOL.slice()).slice(0, totalPairs);
+  let deck = [];
+  chosen.forEach(face => deck.push(face, face)); // two of each
+  shuffle(deck);
+
+  // Lay out the grid
+  boardEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+  boardEl.innerHTML = "";
+
+  deck.forEach(face => {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.dataset.face = face;
+    card.setAttribute("role", "button");
+    card.setAttribute("aria-label", "Face-down card");
+
+    // Two faces: back (shown first) and front (the emoji)
+    card.innerHTML = `
+      <div class="card-inner">
+        <div class="face face-back"></div>
+        <div class="face face-front">${face}</div>
+      </div>`;
+
+    card.addEventListener("click", () => onCardClick(card));
+    boardEl.appendChild(card);
+  });
+}
+
+/* ---------- Card click handling ---------- */
+function onCardClick(card) {
+  // Ignore clicks while comparing, on the same card, or on matched cards
+  if (lockBoard) return;
+  if (card === firstCard) return;
+  if (card.classList.contains("matched")) return;
+  if (card.classList.contains("flipped")) return;
+
+  // First interaction starts the timer
+  startTimer();
+
+  flipUp(card);
+
+  if (!firstCard) {
+    firstCard = card;          // waiting for a second pick
+    return;
+  }
+
+  // Second card chosen -> count a move and compare
+  secondCard = card;
+  moves++;
+  movesEl.textContent = String(moves);
+  checkMatch();
+}
+
+function flipUp(card) {
+  card.classList.add("flipped");
+  card.setAttribute("aria-label", "Card showing " + card.dataset.face);
+}
+
+function flipDown(card) {
+  card.classList.remove("flipped");
+  card.setAttribute("aria-label", "Face-down card");
+}
+
+/* Compare the two flipped cards. */
+function checkMatch() {
+  const isMatch = firstCard.dataset.face === secondCard.dataset.face;
+
+  if (isMatch) {
+    // Lock the pair in place
+    firstCard.classList.add("matched");
+    secondCard.classList.add("matched");
+    resetTurn();
+    matchedPairs++;
+    if (matchedPairs === totalPairs) endGame();
+  } else {
+    // Briefly show both, then flip them back
+    lockBoard = true; // blocks flipping a third card
+    setTimeout(() => {
+      flipDown(firstCard);
+      flipDown(secondCard);
+      resetTurn();
+    }, 850);
+  }
+}
+
+/* Clears the per-turn selection state. */
+function resetTurn() {
+  firstCard = secondCard = null;
+  lockBoard = false;
+}
+
+/* ---------- Win handling ---------- */
+function endGame() {
+  stopTimer();
+
+  const diff = difficultyEl.value;
+  const record = { moves: moves, time: elapsed };
+  const isNewBest = maybeSaveBest(diff, record);
+
+  finalTimeEl.textContent  = formatTime(elapsed);
+  finalMovesEl.textContent = String(moves);
+  newBestEl.style.display  = isNewBest ? "block" : "none";
+
+  renderBest();
+
+  // Small delay so the last flip animation finishes first
+  setTimeout(() => overlayEl.classList.add("show"), 400);
+}
+
+/* ---------- Event wiring ---------- */
+restartBtn.addEventListener("click", newGame);
+playAgainBtn.addEventListener("click", newGame);
+difficultyEl.addEventListener("change", newGame); // changing difficulty restarts
+
+/* ---------- Boot ---------- */
+newGame();
+</script>
+  <footer class="site-footer" style="text-align:center;padding:24px 16px;margin-top:32px;color:#94a3b8;font-size:13px;line-height:1.5;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">&copy; 2025&ndash;2026 <a href="https://github.com/setnev" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:none">Steven Peterson</a></footer>
+</body>
+</html>
