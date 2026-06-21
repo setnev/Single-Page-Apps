@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Cover Letter Generator</title>
+<style>
+  /* ---------- Theme tokens (dark) ---------- */
+  :root {
+    --bg: #0f172a;          /* page background */
+    --panel: #1e293b;       /* primary panels */
+    --panel-2: #273449;     /* secondary panels / inputs */
+    --accent: #38bdf8;      /* interactive accent */
+    --text: #e2e8f0;        /* main text */
+    --muted: #94a3b8;       /* secondary text */
+    --good: #34d399;        /* success */
+    --radius: 12px;
+    --font: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 16px;
+    line-height: 1.5;
+  }
+
+  /* ---------- Layout ---------- */
+  .wrap {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 20px 16px 60px;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+
+  h1 {
+    font-size: 1.5rem;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .tagline {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin: 0 0 20px;
+  }
+
+  /* ---------- Buttons ---------- */
+  button {
+    font-family: inherit;
+    font-size: 0.95rem;
+    border: none;
+    border-radius: var(--radius);
+    padding: 10px 16px;
+    cursor: pointer;
+    background: var(--panel-2);
+    color: var(--text);
+    transition: filter 0.15s ease, opacity 0.15s ease;
+  }
+  button:hover { filter: brightness(1.15); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  button.primary {
+    background: var(--accent);
+    color: #06121f;
+    font-weight: 600;
+  }
+  button.ghost {
+    background: transparent;
+    border: 1px solid var(--panel-2);
+  }
+  .icon-btn {
+    background: transparent;
+    border: 1px solid var(--panel-2);
+    padding: 8px 12px;
+    font-size: 1.1rem;
+    line-height: 1;
+  }
+
+  /* ---------- Panels & form ---------- */
+  .panel {
+    background: var(--panel);
+    border-radius: var(--radius);
+    padding: 18px;
+    margin-bottom: 18px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  @media (max-width: 640px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+
+  label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+
+  input[type="text"],
+  input[type="password"],
+  input[type="url"],
+  select,
+  textarea {
+    width: 100%;
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid #33455e;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-family: inherit;
+    font-size: 0.95rem;
+    resize: vertical;
+  }
+  input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .field { margin-bottom: 14px; }
+
+  textarea { min-height: 120px; }
+  textarea.tall { min-height: 160px; }
+
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: flex-end;
+  }
+  .row .field { flex: 1 1 160px; margin-bottom: 0; }
+
+  .actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+  }
+
+  /* ---------- Settings (collapsible) ---------- */
+  #settings { display: none; }
+  #settings.open { display: block; }
+
+  /* ---------- Output ---------- */
+  #output-panel { display: none; }
+  #output-panel.show { display: block; }
+
+  #letter {
+    min-height: 320px;
+    font-size: 0.97rem;
+    line-height: 1.6;
+  }
+
+  .output-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  .output-head h2 { margin: 0; font-size: 1.1rem; }
+
+  /* ---------- Status / hints ---------- */
+  .hint {
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin-top: 8px;
+  }
+  .privacy {
+    font-size: 0.8rem;
+    color: var(--muted);
+    border-top: 1px solid var(--panel-2);
+    margin-top: 24px;
+    padding-top: 16px;
+  }
+  .status {
+    font-size: 0.88rem;
+    margin-top: 12px;
+    min-height: 1.2em;
+  }
+  .status.error { color: #f87171; }
+  .status.good { color: var(--good); }
+
+  /* loading spinner */
+  .spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #06121f;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: -2px;
+    margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .copied { color: var(--good); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>✉️ Cover Letter Generator</h1>
+    <button id="gear" class="icon-btn" title="Settings" aria-label="Settings">⚙️</button>
+  </header>
+  <p class="tagline">Write a tailored, specific cover letter that maps your background to the role. Runs entirely in your browser.</p>
+
+  <!-- ===================== SETTINGS PANEL ===================== -->
+  <section id="settings" class="panel" aria-label="Provider settings">
+    <h2 style="margin-top:0;font-size:1.1rem;">Settings</h2>
+    <div class="field">
+      <label for="provider">Provider</label>
+      <select id="provider">
+        <option value="claude">Claude (Anthropic)</option>
+        <option value="openai">OpenAI-compatible</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="apiKey">API key</label>
+      <input type="password" id="apiKey" placeholder="Paste your API key" autocomplete="off" />
+    </div>
+
+    <!-- Base URL only shown for OpenAI-compatible -->
+    <div class="field" id="baseUrlField">
+      <label for="baseUrl">Base URL (OpenAI-compatible only)</label>
+      <input type="url" id="baseUrl" placeholder="https://api.openai.com/v1" />
+    </div>
+
+    <div class="field">
+      <label for="model">Model</label>
+      <input type="text" id="model" list="modelList" placeholder="Model name" />
+      <datalist id="modelList"></datalist>
+    </div>
+
+    <div class="actions">
+      <button id="saveSettings" class="primary">Save settings</button>
+      <button id="closeSettings" class="ghost">Close</button>
+    </div>
+    <p class="hint">Your API key is stored only in this browser's localStorage and is sent only to the provider you configure. A browser-stored key is visible to anyone with access to this device.</p>
+  </section>
+
+  <!-- ===================== INPUT FORM ===================== -->
+  <section class="panel" aria-label="Cover letter inputs">
+    <div class="grid">
+      <div class="field">
+        <label for="name">Your name</label>
+        <input type="text" id="name" placeholder="Jane Doe" />
+      </div>
+      <div class="field">
+        <label for="company">Company name</label>
+        <input type="text" id="company" placeholder="Acme Corp" />
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="role">Role / title</label>
+      <input type="text" id="role" placeholder="Senior Product Designer" />
+    </div>
+
+    <div class="field">
+      <label for="jobDesc">Job description</label>
+      <textarea id="jobDesc" class="tall" placeholder="Paste the job posting here..."></textarea>
+    </div>
+
+    <div class="field">
+      <label for="background">Your background / resume highlights</label>
+      <textarea id="background" class="tall" placeholder="Key experience, achievements, skills, metrics..."></textarea>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label for="tone">Tone</label>
+        <select id="tone">
+          <option value="professional">Professional</option>
+          <option value="enthusiastic">Enthusiastic</option>
+          <option value="concise">Concise</option>
+          <option value="friendly">Friendly</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="length">Length</label>
+        <select id="length">
+          <option value="short">Short</option>
+          <option value="medium" selected>Medium</option>
+          <option value="long">Long</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="actions" style="margin-top:16px;">
+      <button id="generate" class="primary">Generate</button>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite"></div>
+  </section>
+
+  <!-- ===================== OUTPUT ===================== -->
+  <section id="output-panel" class="panel" aria-label="Generated letter">
+    <div class="output-head">
+      <h2>Your cover letter</h2>
+      <div class="actions" style="margin-top:0;">
+        <button id="copy" class="ghost">Copy</button>
+        <button id="download" class="ghost">Download .txt</button>
+        <button id="regenerate" class="primary">Regenerate</button>
+      </div>
+    </div>
+    <textarea id="letter" placeholder="Your generated cover letter will appear here. You can edit it freely."></textarea>
+  </section>
+
+  <p class="privacy">
+    🔒 <strong>Privacy-first:</strong> This app runs entirely in your browser. Your API key and all text stay in your browser's localStorage.
+    There is no server of ours and no analytics. Text is sent only to the AI provider you configure.
+  </p>
+</div>
+
+<script>
+/* =========================================================================
+   STORAGE — all settings & form data persisted in localStorage (browser-only)
+   ========================================================================= */
+const LS_KEY = "coverLetterGenerator.settings.v1";
+
+// Default settings per the provider module spec.
+const DEFAULTS = {
+  provider: "claude",
+  apiKey: "",
+  baseUrl: "https://api.openai.com/v1",
+  model: "claude-opus-4-8",
+};
+
+// Model suggestions shown in the datalist, per provider.
+const MODEL_SUGGESTIONS = {
+  claude: ["claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"],
+  openai: ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini"],
+};
+
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return { ...DEFAULTS };
+    return { ...DEFAULTS, ...JSON.parse(raw) };
+  } catch (e) {
+    return { ...DEFAULTS };
+  }
+}
+
+function saveSettings(s) {
+  localStorage.setItem(LS_KEY, JSON.stringify(s));
+}
+
+/* =========================================================================
+   PROVIDER MODULE — shared LLM client (identical across our AI apps)
+   ========================================================================= */
+
+/**
+ * Call the configured LLM and return the assistant's text.
+ * @param {{system:string, user:string, maxTokens?:number}} opts
+ * @returns {Promise<string>}
+ */
+async function callLLM({ system, user, maxTokens }) {
+  const s = loadSettings();
+  const key = (s.apiKey || "").trim();
+  if (!key) throw new Error("No API key set. Open Settings to add one.");
+
+  if (s.provider === "claude") {
+    return callClaude({ system, user, maxTokens, key, model: s.model });
+  } else {
+    return callOpenAI({ system, user, maxTokens, key, model: s.model, baseURL: s.baseUrl });
+  }
+}
+
+// ----- Claude (Anthropic) -----
+async function callClaude({ system, user, maxTokens, key, model }) {
+  let res;
+  try {
+    res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": key,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify({
+        model: model || "claude-opus-4-8",
+        max_tokens: maxTokens || 2048,
+        system,
+        messages: [{ role: "user", content: user }],
+      }),
+    });
+  } catch (e) {
+    throw new Error("Network error reaching Anthropic. Check your connection.");
+  }
+
+  if (!res.ok) {
+    throw new Error(await describeHttpError(res, "Anthropic"));
+  }
+
+  const data = await res.json();
+
+  // Handle a safety refusal explicitly.
+  if (data.stop_reason === "refusal") {
+    throw new Error("The model declined to generate this content (refusal).");
+  }
+
+  // content is an array of blocks; join all text blocks.
+  const text = (data.content || [])
+    .filter((b) => b.type === "text")
+    .map((b) => b.text)
+    .join("");
+
+  if (!text) throw new Error("Empty response from Anthropic.");
+  return text;
+}
+
+// ----- OpenAI-compatible -----
+async function callOpenAI({ system, user, maxTokens, key, model, baseURL }) {
+  const base = (baseURL || "https://api.openai.com/v1").replace(/\/$/, "");
+  let res;
+  try {
+    res = await fetch(`${base}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "Authorization": `Bearer ${key}`,
+      },
+      body: JSON.stringify({
+        model: model || "gpt-4o-mini",
+        max_tokens: maxTokens || 2048,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+      }),
+    });
+  } catch (e) {
+    throw new Error("Network error reaching the API endpoint. Check the Base URL and your connection.");
+  }
+
+  if (!res.ok) {
+    throw new Error(await describeHttpError(res, "the API"));
+  }
+
+  const data = await res.json();
+  const text = data.choices && data.choices[0] && data.choices[0].message
+    ? data.choices[0].message.content
+    : "";
+
+  if (!text) throw new Error("Empty response from the API.");
+  return text;
+}
+
+// Build a clear error message from an HTTP error response.
+async function describeHttpError(res, who) {
+  let detail = "";
+  try {
+    const body = await res.json();
+    detail = (body.error && (body.error.message || body.error)) || JSON.stringify(body);
+  } catch (e) {
+    try { detail = await res.text(); } catch (e2) { detail = ""; }
+  }
+  const base = `${who} returned HTTP ${res.status} ${res.statusText}`;
+  if (res.status === 401) return `${base} — your API key looks invalid or missing.`;
+  if (res.status === 429) return `${base} — rate limited. Wait a moment and try again.`;
+  return detail ? `${base}: ${detail}` : base;
+}
+
+/* =========================================================================
+   PROMPT BUILDING — instructs the model to write a strong, tailored letter
+   ========================================================================= */
+
+const LENGTH_GUIDE = {
+  short: "about 150-200 words (3 short paragraphs)",
+  medium: "about 250-350 words (3-4 paragraphs)",
+  long: "about 400-500 words (4-5 paragraphs)",
+};
+
+const TONE_GUIDE = {
+  professional: "polished and professional",
+  enthusiastic: "warm and enthusiastic while staying credible",
+  concise: "tight and direct, no filler",
+  friendly: "approachable and personable, but still professional",
+};
+
+function buildPrompt(input) {
+  const system =
+    "You are an expert career writer who produces tailored, specific, non-generic cover letters. " +
+    "You map a candidate's real background to the requirements of a specific role and company. " +
+    "You write in plain, confident prose. You never invent facts, credentials, employers, or metrics " +
+    "that are not present in the candidate's background. You avoid clichés (e.g. 'I am writing to express my interest', " +
+    "'team player', 'detail-oriented', 'passionate about'), avoid generic filler, and never leave placeholder brackets " +
+    "like [Company] or [Your Name]. Output only the finished cover letter text — no preamble, no notes, no markdown headings.";
+
+  const tone = TONE_GUIDE[input.tone] || TONE_GUIDE.professional;
+  const length = LENGTH_GUIDE[input.length] || LENGTH_GUIDE.medium;
+
+  const user =
+    `Write a cover letter for the following application.\n\n` +
+    `Candidate name: ${input.name || "(not provided)"}\n` +
+    `Role / title: ${input.role || "(not provided)"}\n` +
+    `Company: ${input.company || "(not provided)"}\n\n` +
+    `JOB DESCRIPTION:\n${input.jobDesc || "(not provided)"}\n\n` +
+    `CANDIDATE BACKGROUND / RESUME HIGHLIGHTS:\n${input.background || "(not provided)"}\n\n` +
+    `Requirements:\n` +
+    `- Tone: ${tone}.\n` +
+    `- Length: ${length}.\n` +
+    `- Open with a specific, engaging hook tied to this role or company — not a templated greeting.\n` +
+    `- In the body, connect the candidate's concrete experience and achievements to the specific needs in the job description.\n` +
+    `- Be specific and evidence-based; reference real details from the background. Do not fabricate anything.\n` +
+    `- Close with a confident, forward-looking sign-off.\n` +
+    `- Sign with the candidate's name if provided.\n` +
+    `- Avoid clichés, buzzwords, and any placeholder text.\n` +
+    `Return only the cover letter.`;
+
+  return { system, user };
+}
+
+/* =========================================================================
+   UI WIRING
+   ========================================================================= */
+
+const $ = (id) => document.getElementById(id);
+
+// --- Settings panel toggle ---
+function openSettings() { $("settings").classList.add("open"); }
+function closeSettings() { $("settings").classList.remove("open"); }
+
+$("gear").addEventListener("click", () => {
+  $("settings").classList.toggle("open");
+});
+$("closeSettings").addEventListener("click", closeSettings);
+
+// Show/hide the Base URL field depending on provider.
+function syncProviderUI() {
+  const provider = $("provider").value;
+  $("baseUrlField").style.display = provider === "openai" ? "block" : "none";
+
+  // Refresh datalist suggestions.
+  const dl = $("modelList");
+  dl.innerHTML = "";
+  (MODEL_SUGGESTIONS[provider] || []).forEach((m) => {
+    const opt = document.createElement("option");
+    opt.value = m;
+    dl.appendChild(opt);
+  });
+}
+
+$("provider").addEventListener("change", () => {
+  syncProviderUI();
+  // Suggest a sensible default model when switching providers and field is empty/known.
+  const provider = $("provider").value;
+  const current = $("model").value.trim();
+  const known = [].concat(MODEL_SUGGESTIONS.claude, MODEL_SUGGESTIONS.openai);
+  if (!current || known.includes(current)) {
+    $("model").value = provider === "claude" ? "claude-opus-4-8" : "gpt-4o-mini";
+  }
+});
+
+// --- Load settings into the form on startup ---
+function hydrateSettingsForm() {
+  const s = loadSettings();
+  $("provider").value = s.provider;
+  $("apiKey").value = s.apiKey;
+  $("baseUrl").value = s.baseUrl;
+  $("model").value = s.model;
+  syncProviderUI();
+}
+
+// --- Save settings ---
+$("saveSettings").addEventListener("click", () => {
+  const s = {
+    provider: $("provider").value,
+    apiKey: $("apiKey").value.trim(),
+    baseUrl: $("baseUrl").value.trim() || "https://api.openai.com/v1",
+    model: $("model").value.trim() ||
+      ($("provider").value === "claude" ? "claude-opus-4-8" : "gpt-4o-mini"),
+  };
+  saveSettings(s);
+  setStatus("Settings saved.", "good");
+  closeSettings();
+});
+
+// --- Persist form inputs so a refresh doesn't lose work ---
+const FORM_FIELDS = ["name", "company", "role", "jobDesc", "background", "tone", "length"];
+const FORM_KEY = "coverLetterGenerator.form.v1";
+
+function saveForm() {
+  const data = {};
+  FORM_FIELDS.forEach((f) => { data[f] = $(f).value; });
+  localStorage.setItem(FORM_KEY, JSON.stringify(data));
+}
+
+function hydrateForm() {
+  try {
+    const raw = localStorage.getItem(FORM_KEY);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    FORM_FIELDS.forEach((f) => { if (data[f] != null) $(f).value = data[f]; });
+  } catch (e) { /* ignore */ }
+}
+
+FORM_FIELDS.forEach((f) => {
+  $(f).addEventListener("input", saveForm);
+  $(f).addEventListener("change", saveForm);
+});
+
+// --- Status helper ---
+function setStatus(msg, kind) {
+  const el = $("status");
+  el.textContent = msg;
+  el.className = "status" + (kind ? " " + kind : "");
+}
+
+// --- Generate / Regenerate ---
+async function generate() {
+  const s = loadSettings();
+  if (!(s.apiKey || "").trim()) {
+    setStatus("No API key set. Open Settings (⚙️) to add one.", "error");
+    openSettings();
+    return;
+  }
+
+  const input = {
+    name: $("name").value.trim(),
+    role: $("role").value.trim(),
+    company: $("company").value.trim(),
+    jobDesc: $("jobDesc").value.trim(),
+    background: $("background").value.trim(),
+    tone: $("tone").value,
+    length: $("length").value,
+  };
+
+  if (!input.role && !input.jobDesc && !input.background) {
+    setStatus("Add at least a role, job description, or background to generate from.", "error");
+    return;
+  }
+
+  const { system, user } = buildPrompt(input);
+
+  // Token budget scales loosely with requested length.
+  const maxTokens = input.length === "long" ? 1600 : input.length === "short" ? 700 : 1100;
+
+  setLoading(true);
+  setStatus("", "");
+  try {
+    const text = await callLLM({ system, user, maxTokens });
+    $("letter").value = text.trim();
+    $("output-panel").classList.add("show");
+    setStatus("Done. Edit the letter below as needed.", "good");
+    $("output-panel").scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (e) {
+    setStatus(e.message || "Something went wrong.", "error");
+  } finally {
+    setLoading(false);
+  }
+}
+
+function setLoading(on) {
+  const btn = $("generate");
+  const rgn = $("regenerate");
+  if (on) {
+    btn.disabled = true; rgn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Generating...';
+    setStatus("Generating your cover letter...", "");
+  } else {
+    btn.disabled = false; rgn.disabled = false;
+    btn.textContent = "Generate";
+  }
+}
+
+$("generate").addEventListener("click", generate);
+$("regenerate").addEventListener("click", generate);
+
+// --- Copy ---
+$("copy").addEventListener("click", async () => {
+  const text = $("letter").value;
+  if (!text.trim()) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    flashButton($("copy"), "Copied!");
+  } catch (e) {
+    // Fallback: select the textarea so the user can copy manually.
+    $("letter").focus();
+    $("letter").select();
+    flashButton($("copy"), "Selected");
+  }
+});
+
+function flashButton(btn, label) {
+  const original = btn.textContent;
+  btn.textContent = label;
+  btn.classList.add("copied");
+  setTimeout(() => {
+    btn.textContent = original;
+    btn.classList.remove("copied");
+  }, 1400);
+}
+
+// --- Download .txt ---
+$("download").addEventListener("click", () => {
+  const text = $("letter").value;
+  if (!text.trim()) return;
+  const company = ($("company").value.trim() || "company").replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+  const role = ($("role").value.trim() || "role").replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+  const fname = `cover-letter-${role}-${company}.txt`;
+
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fname;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+// --- Init ---
+hydrateSettingsForm();
+hydrateForm();
+</script>
+  <footer class="site-footer" style="text-align:center;padding:24px 16px;margin-top:32px;color:#94a3b8;font-size:13px;line-height:1.5;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">&copy; 2025&ndash;2026 <a href="https://github.com/setnev" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:none">Steven Peterson</a></footer>
+</body>
+</html>
