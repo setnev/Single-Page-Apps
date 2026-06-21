@@ -452,7 +452,7 @@ function parseInline(text) {
   const codeSpans = [];
   text = text.replace(/`([^`]+)`/g, function (_, code) {
     codeSpans.push(code);
-    return " CODE" + (codeSpans.length - 1) + " ";
+    return "\u0000CODE" + (codeSpans.length - 1) + "\u0000";
   });
 
   // --- Images: ![alt](url)   (must run before links)
@@ -476,7 +476,7 @@ function parseInline(text) {
   text = text.replace(/\b_([^_]+)_\b/g, "<em>$1</em>");
 
   // --- Restore inline code spans (escaped content, kept literal).
-  text = text.replace(/ CODE(\d+) /g, function (_, i) {
+  text = text.replace(/\u0000CODE(\d+)\u0000/g, function (_, i) {
     return "<code>" + codeSpans[+i] + "</code>";
   });
 
