@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Text Summarizer</title>
+<style>
+  /* ===== Theme tokens ===== */
+  :root {
+    --bg: #0f172a;
+    --panel: #1e293b;
+    --panel-2: #273449;
+    --accent: #38bdf8;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --good: #34d399;
+    --radius: 14px;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+      Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    line-height: 1.5;
+  }
+
+  body {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 16px;
+  }
+
+  /* ===== Header ===== */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  header h1 {
+    font-size: 1.4rem;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .privacy-note {
+    color: var(--muted);
+    font-size: 0.8rem;
+    margin: 4px 0 0;
+  }
+
+  /* ===== Buttons ===== */
+  button {
+    font-family: var(--font);
+    font-size: 0.95rem;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    background: var(--panel-2);
+    color: var(--text);
+    transition: filter 0.15s ease, opacity 0.15s ease;
+  }
+  button:hover { filter: brightness(1.15); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.primary {
+    background: var(--accent);
+    color: #052032;
+    font-weight: 600;
+  }
+  button.icon {
+    background: transparent;
+    border: 1px solid var(--panel-2);
+    padding: 8px 12px;
+    font-size: 1.1rem;
+    line-height: 1;
+  }
+
+  /* ===== Panels ===== */
+  .panel {
+    background: var(--panel);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+
+  label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+
+  textarea, input, select {
+    width: 100%;
+    font-family: var(--font);
+    font-size: 0.95rem;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid #33425c;
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+  textarea:focus, input:focus, select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  textarea {
+    resize: vertical;
+    min-height: 200px;
+  }
+
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .row > .field { flex: 1 1 180px; }
+
+  .meta {
+    color: var(--muted);
+    font-size: 0.8rem;
+    margin-top: 6px;
+  }
+
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-top: 12px;
+  }
+  .toolbar .spacer { flex: 1; }
+
+  /* ===== Output ===== */
+  #output {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    background: var(--panel-2);
+    border-radius: 10px;
+    padding: 14px;
+    min-height: 80px;
+  }
+  #output:empty::before {
+    content: "Your summary will appear here.";
+    color: var(--muted);
+  }
+
+  .notice {
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 0.88rem;
+    margin-top: 10px;
+  }
+  .notice.warn { background: #422006; color: #fcd34d; }
+  .notice.error { background: #450a0a; color: #fca5a5; }
+  .notice.ok { background: #052e1c; color: var(--good); }
+
+  /* ===== Settings modal ===== */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(2, 6, 23, 0.7);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    z-index: 50;
+  }
+  .overlay.open { display: flex; }
+  .modal {
+    background: var(--panel);
+    border-radius: var(--radius);
+    padding: 20px;
+    width: 100%;
+    max-width: 480px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .modal h2 { margin-top: 0; font-size: 1.1rem; }
+  .modal .field { margin-bottom: 14px; }
+
+  /* spinner */
+  .spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(5, 32, 50, 0.4);
+    border-top-color: #052032;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: -3px;
+    margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .hidden { display: none !important; }
+
+  @media (max-width: 520px) {
+    header h1 { font-size: 1.2rem; }
+  }
+</style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>📝 Text Summarizer</h1>
+      <p class="privacy-note">
+        Private &amp; offline-first: your API key and text stay in this browser
+        (localStorage). No analytics. Text is sent only to the AI provider you configure.
+      </p>
+    </div>
+    <button class="icon" id="settingsBtn" title="Settings" aria-label="Settings">⚙️</button>
+  </header>
+
+  <!-- ===== Input ===== -->
+  <section class="panel">
+    <label for="source">Source text</label>
+    <textarea id="source" placeholder="Paste or type the text you want to summarize…"></textarea>
+    <div class="meta" id="inputCount">0 words · 0 characters</div>
+    <div class="toolbar">
+      <input type="file" id="fileInput" accept=".txt,.md,text/plain,text/markdown" class="hidden" />
+      <button id="importBtn">Import .txt / .md</button>
+      <button id="clearBtn">Clear</button>
+    </div>
+    <div id="longWarn" class="notice warn hidden"></div>
+  </section>
+
+  <!-- ===== Controls ===== -->
+  <section class="panel">
+    <div class="row">
+      <div class="field">
+        <label for="format">Summary format</label>
+        <select id="format">
+          <option value="paragraph">Paragraph</option>
+          <option value="bullets">Bullet points</option>
+          <option value="tldr">TL;DR (one-liner)</option>
+          <option value="takeaways">Key takeaways</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="length">Length</label>
+        <select id="length">
+          <option value="brief">Brief</option>
+          <option value="standard" selected>Standard</option>
+          <option value="detailed">Detailed</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="focus">Focus on… (optional)</label>
+        <input type="text" id="focus" placeholder="e.g. action items, risks" />
+      </div>
+    </div>
+    <div class="toolbar">
+      <button class="primary" id="summarizeBtn">Summarize</button>
+      <span class="spacer"></span>
+    </div>
+    <div id="status" class="notice hidden"></div>
+  </section>
+
+  <!-- ===== Output ===== -->
+  <section class="panel">
+    <div class="toolbar" style="margin-top:0; margin-bottom:10px;">
+      <label style="margin:0;">Summary</label>
+      <span class="spacer"></span>
+      <span class="meta" id="outputCount"></span>
+      <button id="copyBtn" disabled>Copy</button>
+    </div>
+    <div id="output"></div>
+  </section>
+
+  <!-- ===== Settings modal ===== -->
+  <div class="overlay" id="overlay">
+    <div class="modal">
+      <h2>⚙️ Settings</h2>
+      <p class="privacy-note">
+        Stored only in this browser's localStorage. A browser-stored key is visible
+        to anyone with access to this device.
+      </p>
+
+      <div class="field">
+        <label for="provider">Provider</label>
+        <select id="provider">
+          <option value="claude">Claude (Anthropic)</option>
+          <option value="openai">OpenAI-compatible</option>
+        </select>
+      </div>
+
+      <div class="field" id="baseUrlField">
+        <label for="baseUrl">Base URL (OpenAI-compatible)</label>
+        <input type="text" id="baseUrl" placeholder="https://api.openai.com/v1" />
+      </div>
+
+      <div class="field">
+        <label for="apiKey">API key</label>
+        <input type="password" id="apiKey" placeholder="sk-…" autocomplete="off" />
+      </div>
+
+      <div class="field">
+        <label for="model">Model</label>
+        <input type="text" id="model" list="modelList" placeholder="model id" />
+        <datalist id="modelList"></datalist>
+      </div>
+
+      <div class="toolbar">
+        <button class="primary" id="saveSettingsBtn">Save</button>
+        <button id="closeSettingsBtn">Close</button>
+        <span class="spacer"></span>
+        <button id="clearSettingsBtn">Forget key</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+"use strict";
+
+/* =========================================================================
+   Storage helpers — everything lives in localStorage, browser-only.
+   ========================================================================= */
+const LS_KEY = "text-summarizer-settings";
+
+// Sensible defaults per the provider module spec.
+const DEFAULTS = {
+  provider: "claude",
+  apiKey: "",
+  baseUrl: "https://api.openai.com/v1",
+  claudeModel: "claude-opus-4-8",
+  openaiModel: "gpt-4o-mini",
+};
+
+// Model suggestions shown in the datalist depending on provider.
+const MODEL_SUGGESTIONS = {
+  claude: ["claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"],
+  openai: ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini"],
+};
+
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return { ...DEFAULTS };
+    return { ...DEFAULTS, ...JSON.parse(raw) };
+  } catch {
+    return { ...DEFAULTS };
+  }
+}
+
+function saveSettings(s) {
+  localStorage.setItem(LS_KEY, JSON.stringify(s));
+}
+
+let settings = loadSettings();
+
+/* =========================================================================
+   Shared LLM client — identical contract across our AI apps.
+   ========================================================================= */
+
+// Returns the model string currently in effect for the active provider.
+function currentModel() {
+  return settings.provider === "claude" ? settings.claudeModel : settings.openaiModel;
+}
+
+/**
+ * callLLM({system, user, maxTokens}) -> Promise<string>
+ * Talks to either Claude (Anthropic) or any OpenAI-compatible endpoint,
+ * directly from the browser. Throws clear errors on HTTP/network failure.
+ */
+async function callLLM({ system, user, maxTokens }) {
+  const key = (settings.apiKey || "").trim();
+  if (!key) throw new Error("No API key set. Open Settings to add one.");
+
+  const tokens = maxTokens || 2048;
+
+  if (settings.provider === "claude") {
+    return callClaude({ system, user, maxTokens: tokens, key });
+  }
+  return callOpenAI({ system, user, maxTokens: tokens, key });
+}
+
+async function callClaude({ system, user, maxTokens, key }) {
+  let res;
+  try {
+    res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": key,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify({
+        model: settings.claudeModel,
+        max_tokens: maxTokens,
+        system: system,
+        messages: [{ role: "user", content: user }],
+      }),
+    });
+  } catch (e) {
+    throw new Error("Network error reaching Anthropic: " + e.message);
+  }
+
+  if (!res.ok) {
+    throw new Error(await describeHttpError(res));
+  }
+
+  const data = await res.json();
+
+  // The model may decline for safety reasons.
+  if (data.stop_reason === "refusal") {
+    throw new Error("The model declined to summarize this request (refusal).");
+  }
+
+  // Join all text content blocks.
+  const text = (data.content || [])
+    .filter((b) => b.type === "text")
+    .map((b) => b.text)
+    .join("")
+    .trim();
+
+  if (!text) throw new Error("The model returned an empty response.");
+  return text;
+}
+
+async function callOpenAI({ system, user, maxTokens, key }) {
+  const base = (settings.baseUrl || DEFAULTS.baseUrl).replace(/\/$/, "");
+  let res;
+  try {
+    res = await fetch(base + "/chat/completions", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        Authorization: "Bearer " + key,
+      },
+      body: JSON.stringify({
+        model: settings.openaiModel,
+        max_tokens: maxTokens,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+      }),
+    });
+  } catch (e) {
+    throw new Error("Network error reaching the endpoint: " + e.message);
+  }
+
+  if (!res.ok) {
+    throw new Error(await describeHttpError(res));
+  }
+
+  const data = await res.json();
+  const text = (data.choices &&
+    data.choices[0] &&
+    data.choices[0].message &&
+    data.choices[0].message.content || "").trim();
+
+  if (!text) throw new Error("The model returned an empty response.");
+  return text;
+}
+
+// Build a readable error message from a failed HTTP response.
+async function describeHttpError(res) {
+  let detail = "";
+  try {
+    const body = await res.json();
+    detail = (body.error && (body.error.message || body.error.type)) ||
+      JSON.stringify(body);
+  } catch {
+    try { detail = await res.text(); } catch { /* ignore */ }
+  }
+  let hint = "";
+  if (res.status === 401) hint = " — check your API key in Settings.";
+  else if (res.status === 404) hint = " — check the model id / base URL.";
+  else if (res.status === 429) hint = " — rate limited, try again shortly.";
+  return `Request failed (HTTP ${res.status})${hint} ${detail}`.trim();
+}
+
+/* =========================================================================
+   Prompt construction
+   ========================================================================= */
+function buildPrompt(text, format, length, focus) {
+  const formatInstr = {
+    paragraph: "Write the summary as one or more flowing prose paragraphs.",
+    bullets: "Write the summary as a list of concise bullet points, each line starting with '- '.",
+    tldr: "Write a single TL;DR sentence — one line, no more.",
+    takeaways: "Write the summary as a short list of the key takeaways, each line starting with '- '.",
+  }[format];
+
+  const lengthInstr = {
+    brief: "Keep it very brief.",
+    standard: "Use a moderate, standard length.",
+    detailed: "Be thorough and detailed, covering the main supporting points.",
+  }[length];
+
+  const focusInstr = focus && focus.trim()
+    ? `Pay particular attention to: ${focus.trim()}.`
+    : "";
+
+  const system =
+    "You are a precise summarization assistant. Summarize the user's text " +
+    "faithfully without adding information that is not present. " +
+    formatInstr + " " + lengthInstr + " " + focusInstr;
+
+  const user = "Summarize the following text:\n\n" + text;
+
+  return { system, user };
+}
+
+/* =========================================================================
+   UI wiring
+   ========================================================================= */
+const $ = (id) => document.getElementById(id);
+
+const els = {
+  source: $("source"),
+  inputCount: $("inputCount"),
+  longWarn: $("longWarn"),
+  importBtn: $("importBtn"),
+  fileInput: $("fileInput"),
+  clearBtn: $("clearBtn"),
+  format: $("format"),
+  length: $("length"),
+  focus: $("focus"),
+  summarizeBtn: $("summarizeBtn"),
+  status: $("status"),
+  output: $("output"),
+  outputCount: $("outputCount"),
+  copyBtn: $("copyBtn"),
+  // settings
+  settingsBtn: $("settingsBtn"),
+  overlay: $("overlay"),
+  provider: $("provider"),
+  baseUrlField: $("baseUrlField"),
+  baseUrl: $("baseUrl"),
+  apiKey: $("apiKey"),
+  model: $("model"),
+  modelList: $("modelList"),
+  saveSettingsBtn: $("saveSettingsBtn"),
+  closeSettingsBtn: $("closeSettingsBtn"),
+  clearSettingsBtn: $("clearSettingsBtn"),
+};
+
+// --- Word / character counting ---
+function countWords(s) {
+  const t = s.trim();
+  if (!t) return 0;
+  return t.split(/\s+/).length;
+}
+
+function updateInputCount() {
+  const text = els.source.value;
+  const words = countWords(text);
+  const chars = text.length;
+  els.inputCount.textContent =
+    `${words.toLocaleString()} words · ${chars.toLocaleString()} characters`;
+
+  // Soft warning for very long input (rough heuristic, ~well past most limits).
+  if (chars > 40000) {
+    els.longWarn.textContent =
+      "This input is very long and may exceed the model's context or be costly. " +
+      "Consider trimming it — we'll still attempt the summary.";
+    els.longWarn.classList.remove("hidden");
+  } else {
+    els.longWarn.classList.add("hidden");
+  }
+}
+
+els.source.addEventListener("input", updateInputCount);
+
+// --- File import (.txt / .md) ---
+els.importBtn.addEventListener("click", () => els.fileInput.click());
+els.fileInput.addEventListener("change", () => {
+  const file = els.fileInput.files && els.fileInput.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    // Append to existing content if any, otherwise replace.
+    const existing = els.source.value.trim();
+    els.source.value = existing
+      ? existing + "\n\n" + String(reader.result)
+      : String(reader.result);
+    updateInputCount();
+  };
+  reader.onerror = () => showStatus("error", "Could not read that file.");
+  reader.readAsText(file);
+  els.fileInput.value = ""; // allow re-importing the same file
+});
+
+// --- Clear ---
+els.clearBtn.addEventListener("click", () => {
+  els.source.value = "";
+  updateInputCount();
+});
+
+// --- Status helper ---
+function showStatus(kind, msg) {
+  els.status.className = "notice " + kind;
+  els.status.textContent = msg;
+  els.status.classList.remove("hidden");
+}
+function hideStatus() {
+  els.status.classList.add("hidden");
+}
+
+// --- HTML escaping then light bullet rendering ---
+function escapeHtml(s) {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// Render output preserving line breaks; the container already uses
+// white-space: pre-wrap, so escaped text with newlines renders faithfully.
+function renderOutput(text) {
+  els.output.innerHTML = escapeHtml(text);
+}
+
+// --- Summarize action ---
+els.summarizeBtn.addEventListener("click", async () => {
+  const text = els.source.value.trim();
+  if (!text) {
+    showStatus("warn", "Please enter or import some text first.");
+    return;
+  }
+  if (!(settings.apiKey || "").trim()) {
+    showStatus("warn", "No API key set. Open Settings (⚙️) to add one.");
+    openSettings();
+    return;
+  }
+
+  const { system, user } = buildPrompt(
+    text,
+    els.format.value,
+    els.length.value,
+    els.focus.value
+  );
+
+  // Loading state.
+  els.summarizeBtn.disabled = true;
+  els.copyBtn.disabled = true;
+  els.outputCount.textContent = "";
+  els.output.textContent = "";
+  showStatus("ok", "Summarizing…");
+  els.status.innerHTML = '<span class="spinner"></span>Summarizing with ' +
+    escapeHtml(currentModel()) + "…";
+
+  try {
+    const result = await callLLM({ system, user, maxTokens: 2048 });
+    renderOutput(result);
+    els.outputCount.textContent = countWords(result).toLocaleString() + " words";
+    els.copyBtn.disabled = false;
+    hideStatus();
+  } catch (e) {
+    showStatus("error", e.message || String(e));
+  } finally {
+    els.summarizeBtn.disabled = false;
+  }
+});
+
+// --- Copy ---
+els.copyBtn.addEventListener("click", async () => {
+  const text = els.output.textContent;
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    const old = els.copyBtn.textContent;
+    els.copyBtn.textContent = "Copied!";
+    setTimeout(() => (els.copyBtn.textContent = old), 1200);
+  } catch {
+    showStatus("warn", "Copy failed — select the text and copy manually.");
+  }
+});
+
+/* =========================================================================
+   Settings modal
+   ========================================================================= */
+function refreshModelDatalist() {
+  const list = MODEL_SUGGESTIONS[els.provider.value] || [];
+  els.modelList.innerHTML = list
+    .map((m) => `<option value="${escapeHtml(m)}"></option>`)
+    .join("");
+}
+
+function syncProviderFields() {
+  const isOpenAI = els.provider.value === "openai";
+  els.baseUrlField.style.display = isOpenAI ? "" : "none";
+  // Show the model belonging to the selected provider.
+  els.model.value = isOpenAI ? settings.openaiModel : settings.claudeModel;
+  refreshModelDatalist();
+}
+
+function openSettings() {
+  // Populate fields from current settings.
+  els.provider.value = settings.provider;
+  els.baseUrl.value = settings.baseUrl;
+  els.apiKey.value = settings.apiKey;
+  syncProviderFields();
+  els.overlay.classList.add("open");
+}
+function closeSettings() {
+  els.overlay.classList.remove("open");
+}
+
+els.settingsBtn.addEventListener("click", openSettings);
+els.closeSettingsBtn.addEventListener("click", closeSettings);
+els.overlay.addEventListener("click", (e) => {
+  if (e.target === els.overlay) closeSettings();
+});
+els.provider.addEventListener("change", syncProviderFields);
+
+els.saveSettingsBtn.addEventListener("click", () => {
+  settings.provider = els.provider.value;
+  settings.apiKey = els.apiKey.value.trim();
+  settings.baseUrl = els.baseUrl.value.trim() || DEFAULTS.baseUrl;
+  const model = els.model.value.trim();
+  if (settings.provider === "claude") {
+    settings.claudeModel = model || DEFAULTS.claudeModel;
+  } else {
+    settings.openaiModel = model || DEFAULTS.openaiModel;
+  }
+  saveSettings(settings);
+  closeSettings();
+  showStatus("ok", "Settings saved.");
+  setTimeout(hideStatus, 1500);
+});
+
+els.clearSettingsBtn.addEventListener("click", () => {
+  settings.apiKey = "";
+  els.apiKey.value = "";
+  saveSettings(settings);
+  showStatus("ok", "API key forgotten.");
+  setTimeout(hideStatus, 1500);
+});
+
+/* =========================================================================
+   Init
+   ========================================================================= */
+updateInputCount();
+// Prompt for setup if no key on first load.
+if (!(settings.apiKey || "").trim()) {
+  showStatus("warn", "Welcome! Open Settings (⚙️) to add your AI provider API key.");
+}
+</script>
+  <footer class="site-footer" style="text-align:center;padding:24px 16px;margin-top:32px;color:#94a3b8;font-size:13px;line-height:1.5;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">&copy; 2025&ndash;2026 <a href="https://github.com/setnev" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:none">Steven Peterson</a></footer>
+</body>
+</html>
