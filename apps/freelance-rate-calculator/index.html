@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Freelance Rate Calculator</title>
+<style>
+  /* ---------- Design tokens (dark theme) ---------- */
+  :root {
+    --bg:      #0f172a;
+    --panel:   #1e293b;
+    --panel-2: #273449;
+    --accent:  #38bdf8;
+    --text:    #e2e8f0;
+    --muted:   #94a3b8;
+    --good:    #34d399;
+    --warn:    #fbbf24;
+    --taxes:   #f87171; /* extra colour for breakdown */
+    --radius:  14px;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+            Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    line-height: 1.5;
+  }
+
+  .wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 24px 16px 64px;
+  }
+
+  header h1 {
+    margin: 0 0 4px;
+    font-size: 1.6rem;
+  }
+  header p.tagline {
+    margin: 0 0 24px;
+    color: var(--muted);
+  }
+
+  /* ---------- Layout ---------- */
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+  @media (max-width: 820px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid #334155;
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+  .panel h2 {
+    margin: 0 0 16px;
+    font-size: 1.05rem;
+    color: var(--accent);
+    letter-spacing: .3px;
+  }
+
+  /* ---------- Form ---------- */
+  .field { margin-bottom: 14px; }
+  .field label {
+    display: block;
+    font-size: .85rem;
+    color: var(--muted);
+    margin-bottom: 5px;
+  }
+  .input-row {
+    display: flex;
+    align-items: stretch;
+    background: var(--panel-2);
+    border: 1px solid #3b4a61;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .input-row:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(56,189,248,.2);
+  }
+  .input-row .prefix {
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    color: var(--muted);
+    font-size: .9rem;
+    background: rgba(0,0,0,.15);
+  }
+  .input-row input,
+  .input-row select {
+    flex: 1;
+    width: 100%;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    font-size: 1rem;
+    padding: 10px 12px;
+    outline: none;
+    -moz-appearance: textfield;
+  }
+  .input-row input::-webkit-outer-spin-button,
+  .input-row input::-webkit-inner-spin-button {
+    -webkit-appearance: none; margin: 0;
+  }
+  .input-row select { cursor: pointer; }
+
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .hint {
+    font-size: .75rem;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  /* ---------- Results ---------- */
+  .result-hero {
+    text-align: center;
+    padding: 8px 0 18px;
+    border-bottom: 1px solid #334155;
+    margin-bottom: 18px;
+  }
+  .result-hero .label {
+    color: var(--muted);
+    font-size: .85rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .result-hero .big {
+    font-size: 3rem;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1.1;
+    margin-top: 6px;
+  }
+  @media (max-width: 480px) {
+    .result-hero .big { font-size: 2.3rem; }
+  }
+
+  .rate-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  .rate-card {
+    background: var(--panel-2);
+    border-radius: 10px;
+    padding: 14px;
+    text-align: center;
+  }
+  .rate-card .k {
+    color: var(--muted);
+    font-size: .8rem;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+  }
+  .rate-card .v {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-top: 4px;
+  }
+  .rate-card.full { grid-column: 1 / -1; }
+
+  /* ---------- Breakdown ---------- */
+  .breakdown { margin-top: 8px; }
+  .legend {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 16px;
+    margin-top: 16px;
+  }
+  .legend .item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: .85rem;
+  }
+  .legend .swatch {
+    width: 12px; height: 12px;
+    border-radius: 3px;
+    flex: 0 0 auto;
+  }
+  .legend .amt {
+    margin-left: auto;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .donut-wrap {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 8px 0;
+  }
+  .donut-center-label { fill: var(--muted); font-size: 10px; }
+  .donut-center-value { fill: var(--text); font-size: 15px; font-weight: 700; }
+
+  .note {
+    margin-top: 20px;
+    padding: 14px;
+    background: rgba(251,191,36,.08);
+    border: 1px solid rgba(251,191,36,.3);
+    border-radius: 10px;
+    color: var(--warn);
+    font-size: .82rem;
+  }
+  .note strong { color: var(--warn); }
+
+  footer {
+    margin-top: 32px;
+    color: var(--muted);
+    font-size: .78rem;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>💼 Freelance Rate Calculator</h1>
+    <p class="tagline">Find the rate you must charge to actually take home what you need.</p>
+  </header>
+
+  <div class="grid">
+    <!-- ============ INPUTS ============ -->
+    <section class="panel">
+      <h2>Your numbers</h2>
+
+      <div class="field">
+        <label for="targetMode">Income target</label>
+        <div class="two-col">
+          <div class="input-row">
+            <span class="prefix" id="curPrefixTarget">$</span>
+            <input type="number" id="target" min="0" step="100" value="60000" />
+          </div>
+          <div class="input-row">
+            <select id="targetMode">
+              <option value="annual" selected>per year</option>
+              <option value="monthly">per month</option>
+            </select>
+          </div>
+        </div>
+        <div class="hint">Your desired take-home (after tax) income.</div>
+      </div>
+
+      <div class="field">
+        <label for="expenses">Annual business expenses</label>
+        <div class="input-row">
+          <span class="prefix" id="curPrefixExp">$</span>
+          <input type="number" id="expenses" min="0" step="100" value="6000" />
+        </div>
+        <div class="hint">Software, gear, insurance, accounting, etc.</div>
+      </div>
+
+      <div class="field">
+        <label for="tax">Tax rate</label>
+        <div class="input-row">
+          <input type="number" id="tax" min="0" max="99" step="0.5" value="25" />
+          <span class="prefix">%</span>
+        </div>
+        <div class="hint">Combined effective tax rate on business income.</div>
+      </div>
+
+      <div class="two-col">
+        <div class="field">
+          <label for="hoursWeek">Billable hours / week</label>
+          <div class="input-row">
+            <input type="number" id="hoursWeek" min="1" max="168" step="1" value="25" />
+            <span class="prefix">hrs</span>
+          </div>
+        </div>
+        <div class="field">
+          <label for="weeksYear">Weeks worked / year</label>
+          <div class="input-row">
+            <input type="number" id="weeksYear" min="1" max="52" step="1" value="46" />
+            <span class="prefix">wks</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="field">
+          <label for="margin">Profit / buffer margin</label>
+          <div class="input-row">
+            <input type="number" id="margin" min="0" max="500" step="1" value="15" />
+            <span class="prefix">%</span>
+          </div>
+        </div>
+        <div class="field">
+          <label for="hoursDay">Hours / billable day</label>
+          <div class="input-row">
+            <input type="number" id="hoursDay" min="1" max="24" step="0.5" value="8" />
+            <span class="prefix">hrs</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="currency">Currency symbol</label>
+        <div class="input-row">
+          <input type="text" id="currency" maxlength="3" value="$" />
+        </div>
+        <div class="hint">Just a display prefix (e.g. $, £, €, ₹).</div>
+      </div>
+    </section>
+
+    <!-- ============ RESULTS ============ -->
+    <section class="panel">
+      <h2>What to charge</h2>
+
+      <div class="result-hero">
+        <div class="label">Required hourly rate</div>
+        <div class="big" id="hourlyOut">—</div>
+      </div>
+
+      <div class="rate-grid">
+        <div class="rate-card">
+          <div class="k">Daily</div>
+          <div class="v" id="dailyOut">—</div>
+        </div>
+        <div class="rate-card">
+          <div class="k">Weekly</div>
+          <div class="v" id="weeklyOut">—</div>
+        </div>
+        <div class="rate-card">
+          <div class="k">Monthly</div>
+          <div class="v" id="monthlyOut">—</div>
+        </div>
+        <div class="rate-card">
+          <div class="k">Project effective / hr</div>
+          <div class="v" id="effectiveOut">—</div>
+        </div>
+        <div class="rate-card full">
+          <div class="k">Required gross revenue / year</div>
+          <div class="v" id="grossOut">—</div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ============ BREAKDOWN ============ -->
+  <section class="panel" style="margin-top:20px">
+    <h2>Where the money goes</h2>
+    <div class="breakdown">
+      <div class="donut-wrap">
+        <!-- Hand-drawn SVG donut, segments filled by JS -->
+        <svg id="donut" width="220" height="220" viewBox="0 0 220 220" aria-label="Revenue breakdown donut chart">
+          <!-- segments are <circle> strokes layered with dasharray -->
+          <g id="donutSegs" transform="rotate(-90 110 110)"></g>
+          <text x="110" y="104" text-anchor="middle" class="donut-center-label">Gross / yr</text>
+          <text x="110" y="124" text-anchor="middle" class="donut-center-value" id="donutCenter">—</text>
+        </svg>
+      </div>
+
+      <div class="legend" id="legend"></div>
+    </div>
+
+    <div class="note">
+      <strong>Heads up:</strong> Utilization matters. You rarely bill every working hour —
+      admin, sales, and downtime eat into your week, which is why "billable hours" is far
+      lower than hours worked. These figures are an <strong>estimate</strong> to guide pricing,
+      not financial or tax advice.
+    </div>
+  </section>
+
+  <footer>
+    Runs 100% offline in your browser. Nothing you type leaves this page.
+  </footer>
+</div>
+
+<script>
+/* ============================================================
+   Freelance Rate Calculator — all logic, no dependencies.
+   ============================================================ */
+
+// Grab elements once.
+const els = {
+  target:     document.getElementById('target'),
+  targetMode: document.getElementById('targetMode'),
+  expenses:   document.getElementById('expenses'),
+  tax:        document.getElementById('tax'),
+  hoursWeek:  document.getElementById('hoursWeek'),
+  weeksYear:  document.getElementById('weeksYear'),
+  margin:     document.getElementById('margin'),
+  hoursDay:   document.getElementById('hoursDay'),
+  currency:   document.getElementById('currency'),
+  // outputs
+  hourlyOut:    document.getElementById('hourlyOut'),
+  dailyOut:     document.getElementById('dailyOut'),
+  weeklyOut:    document.getElementById('weeklyOut'),
+  monthlyOut:   document.getElementById('monthlyOut'),
+  effectiveOut: document.getElementById('effectiveOut'),
+  grossOut:     document.getElementById('grossOut'),
+  donutSegs:    document.getElementById('donutSegs'),
+  donutCenter:  document.getElementById('donutCenter'),
+  legend:       document.getElementById('legend'),
+  curPrefixTarget: document.getElementById('curPrefixTarget'),
+  curPrefixExp:    document.getElementById('curPrefixExp'),
+};
+
+// Read a numeric field safely (NaN/negative -> fallback).
+function num(el, fallback = 0) {
+  const v = parseFloat(el.value);
+  return Number.isFinite(v) ? v : fallback;
+}
+
+// Format a currency-ish number with the chosen prefix.
+function money(amount, sym) {
+  if (!Number.isFinite(amount)) return '—';
+  const rounded = Math.round(amount);
+  return sym + rounded.toLocaleString(undefined);
+}
+
+// Format with 2 decimals (used for per-hour where cents matter).
+function money2(amount, sym) {
+  if (!Number.isFinite(amount)) return '—';
+  return sym + amount.toLocaleString(undefined, {
+    minimumFractionDigits: 2, maximumFractionDigits: 2
+  });
+}
+
+function calculate() {
+  const sym = (els.currency.value || '$').trim() || '$';
+
+  // Keep currency prefixes in the form in sync.
+  els.curPrefixTarget.textContent = sym;
+  els.curPrefixExp.textContent = sym;
+
+  // --- Gather inputs ---
+  const targetRaw = num(els.target);
+  const annualTakeHome = els.targetMode.value === 'monthly'
+    ? targetRaw * 12        // convert monthly target to annual
+    : targetRaw;
+
+  const expenses  = num(els.expenses);
+  const taxPct    = Math.min(num(els.tax), 99);   // clamp; 100%+ is nonsensical
+  const hoursWeek = num(els.hoursWeek, 1);
+  const weeksYear = num(els.weeksYear, 1);
+  const marginPct = num(els.margin);
+  const hoursDay  = num(els.hoursDay, 1);
+
+  const taxRate = taxPct / 100;          // e.g. 25% -> 0.25
+  const margin  = marginPct / 100;       // e.g. 15% -> 0.15
+
+  // --- THE MATH ---------------------------------------------------------
+  // 1. We need enough revenue so that, AFTER tax, what's left covers both
+  //    take-home pay and business expenses.
+  //      net after tax = grossRevenue * (1 - taxRate)
+  //    and we want:  net after tax = takeHome + expenses
+  //    so:           grossRevenue = (takeHome + expenses) / (1 - taxRate)
+  const baseGross = (annualTakeHome + expenses) / (1 - taxRate);
+
+  // 2. Total billable hours available across the year.
+  const billableHours = hoursWeek * weeksYear;
+
+  // 3. Base hourly rate before any profit/buffer margin.
+  const baseHourly = baseGross / billableHours;
+
+  // 4. Apply the profit / buffer margin on top of the base rate.
+  //    A 15% margin means you charge 15% more than the bare minimum,
+  //    giving you a cushion (and the "gross revenue" rises to match).
+  const hourly = baseHourly * (1 + margin);
+
+  // The grossRevenue actually collected when charging the buffered rate:
+  const grossRevenue = hourly * billableHours;        // = baseGross * (1+margin)
+
+  // --- Derived rates ---
+  const daily   = hourly * hoursDay;
+  const weekly  = hourly * hoursWeek;
+  const monthly = grossRevenue / 12;
+
+  // Project "effective" rate: if you quote a fixed project price based on
+  // estimated hours, this is what each *billable* hour really earns —
+  // here it equals the hourly rate (kept explicit for clarity / future use).
+  const effective = grossRevenue / billableHours;
+
+  // --- Render headline numbers ---
+  const ok = Number.isFinite(hourly) && hourly > 0 && billableHours > 0;
+  els.hourlyOut.textContent    = ok ? money2(hourly, sym) : '—';
+  els.dailyOut.textContent     = ok ? money(daily, sym) : '—';
+  els.weeklyOut.textContent    = ok ? money(weekly, sym) : '—';
+  els.monthlyOut.textContent   = ok ? money(monthly, sym) : '—';
+  els.effectiveOut.textContent = ok ? money2(effective, sym) : '—';
+  els.grossOut.textContent     = ok ? money(grossRevenue, sym) : '—';
+
+  // --- Breakdown: where the gross revenue goes ---
+  // taxes   = portion lost to tax (on the base gross, the part that is "needed")
+  // We attribute the buffer separately so the donut tells an honest story:
+  //   gross = takeHome + expenses + taxesOnBase + buffer
+  const taxesOnBase = baseGross * taxRate;            // tax on the needed gross
+  const bufferAmt   = grossRevenue - baseGross;       // the extra from margin
+  // Note: tax on the buffer is ignored here for a simpler visual; the buffer
+  // is shown as pre-tax cushion. (Estimate — see note.)
+
+  const segments = [
+    { key: 'Take-home',  val: annualTakeHome, color: getCss('--good')  },
+    { key: 'Taxes',      val: taxesOnBase,    color: getCss('--taxes') },
+    { key: 'Expenses',   val: expenses,       color: getCss('--accent')},
+    { key: 'Buffer',     val: bufferAmt,      color: getCss('--warn')  },
+  ].filter(s => Number.isFinite(s.val) && s.val > 0);
+
+  renderDonut(segments, ok ? grossRevenue : 0, sym);
+  renderLegend(segments, sym);
+  els.donutCenter.textContent = ok ? money(grossRevenue, sym) : '—';
+}
+
+// Read a CSS custom property value.
+function getCss(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+/* ---- Hand-drawn SVG donut ----
+   We draw concentric stroke arcs on one circle using stroke-dasharray.
+   Circumference C = 2πr; each segment gets a dash of (fraction * C). */
+function renderDonut(segments, total, sym) {
+  const g = els.donutSegs;
+  g.innerHTML = '';
+  const r = 80;                       // radius
+  const cx = 110, cy = 110;
+  const C = 2 * Math.PI * r;          // circumference
+  let offset = 0;
+
+  if (!total || total <= 0) {
+    // Empty / grey ring as a placeholder.
+    g.appendChild(circle(cx, cy, r, '#334155', C, 0, 0));
+    return;
+  }
+
+  segments.forEach(seg => {
+    const frac = seg.val / total;
+    const dash = frac * C;
+    // stroke-dasharray = visible length, then gap to fill the rest.
+    g.appendChild(circle(cx, cy, r, seg.color, dash, C - dash, -offset));
+    offset += dash;
+  });
+}
+
+// Helper to build an SVG ring segment as a <circle>.
+function circle(cx, cy, r, color, dash, gap, dashOffset) {
+  const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  c.setAttribute('cx', cx);
+  c.setAttribute('cy', cy);
+  c.setAttribute('r', r);
+  c.setAttribute('fill', 'none');
+  c.setAttribute('stroke', color);
+  c.setAttribute('stroke-width', '26');
+  c.setAttribute('stroke-dasharray', dash + ' ' + gap);
+  c.setAttribute('stroke-dashoffset', dashOffset);
+  return c;
+}
+
+function renderLegend(segments, sym) {
+  const total = segments.reduce((a, s) => a + s.val, 0);
+  els.legend.innerHTML = '';
+  segments.forEach(seg => {
+    const pct = total > 0 ? Math.round((seg.val / total) * 100) : 0;
+    const item = document.createElement('div');
+    item.className = 'item';
+    item.innerHTML =
+      '<span class="swatch" style="background:' + seg.color + '"></span>' +
+      '<span>' + seg.key + ' (' + pct + '%)</span>' +
+      '<span class="amt">' + money(seg.val, sym) + '</span>';
+    els.legend.appendChild(item);
+  });
+}
+
+// Recalculate live on every input change.
+Object.values(els).forEach(el => {
+  if (el && (el.tagName === 'INPUT' || el.tagName === 'SELECT')) {
+    el.addEventListener('input', calculate);
+    el.addEventListener('change', calculate);
+  }
+});
+
+// Initial render so defaults produce a meaningful result on load.
+calculate();
+</script>
+  <footer class="site-footer" style="text-align:center;padding:24px 16px;margin-top:32px;color:#94a3b8;font-size:13px;line-height:1.5;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">&copy; 2025&ndash;2026 <a href="https://github.com/setnev" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:none">Steven Peterson</a></footer>
+</body>
+</html>
