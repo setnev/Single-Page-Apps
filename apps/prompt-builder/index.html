@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Prompt Builder &amp; Tester</title>
+<style>
+  /* ============================================================
+     Prompt Builder & Tester — single-file, offline-first app.
+     All styling lives here; no external fonts or stylesheets.
+     Theme: dark slate with sky-blue accent.
+     ============================================================ */
+  :root {
+    --bg: #0f172a;          /* page background */
+    --panel: #1e293b;       /* primary panel */
+    --panel-2: #273449;     /* secondary / nested panel */
+    --accent: #38bdf8;      /* sky-blue accent */
+    --text: #e2e8f0;        /* main text */
+    --muted: #94a3b8;       /* muted / secondary text */
+    --good: #34d399;        /* success / good */
+    --danger: #f87171;      /* errors */
+    --border: #334155;      /* hairline borders */
+    --radius: 12px;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+            Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono",
+            monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  /* ---------- Layout ---------- */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    position: sticky;
+    top: 0;
+    z-index: 20;
+  }
+  header h1 {
+    font-size: 1.15rem;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 650;
+  }
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 18px;
+  }
+
+  /* ---------- Buttons ---------- */
+  button {
+    font-family: var(--font);
+    font-size: 0.9rem;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 8px 14px;
+    transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+  }
+  button:hover { background: #31425c; }
+  button:active { transform: translateY(1px); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.primary {
+    background: var(--accent);
+    color: #082235;
+    border-color: var(--accent);
+    font-weight: 650;
+  }
+  button.primary:hover { background: #5ccbfa; }
+  button.ghost { background: transparent; }
+  button.icon {
+    padding: 8px 10px;
+    font-size: 1.05rem;
+    line-height: 1;
+  }
+  button.small { padding: 5px 9px; font-size: 0.8rem; }
+  button.danger { color: var(--danger); border-color: #5b2b2b; }
+  button.danger:hover { background: #3a2020; }
+
+  /* ---------- Tabs ---------- */
+  .tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+  }
+  .tab {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 9px 16px;
+  }
+  .tab.active {
+    background: var(--panel);
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: 650;
+  }
+
+  /* ---------- Panels & fields ---------- */
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .grid2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width: 760px) {
+    .grid2 { grid-template-columns: 1fr; }
+  }
+
+  label.field {
+    display: block;
+    margin-bottom: 14px;
+  }
+  label.field > span.lbl {
+    display: block;
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin-bottom: 5px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  input[type="text"], input[type="password"], input[type="number"],
+  select, textarea {
+    width: 100%;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 9px 11px;
+    font-family: var(--font);
+    font-size: 0.92rem;
+  }
+  input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25);
+  }
+  textarea {
+    resize: vertical;
+    font-family: var(--mono);
+    font-size: 0.88rem;
+    line-height: 1.45;
+  }
+  textarea.tall { min-height: 120px; }
+
+  .section-title {
+    font-size: 1rem;
+    font-weight: 650;
+    margin: 0 0 4px;
+  }
+  .section-sub {
+    color: var(--muted);
+    font-size: 0.85rem;
+    margin: 0 0 14px;
+  }
+
+  /* ---------- Assembled / response output ---------- */
+  .output-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
+  .counts {
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-family: var(--mono);
+  }
+  .response-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: var(--mono);
+    font-size: 0.88rem;
+    min-height: 80px;
+    line-height: 1.5;
+  }
+  .response-box.placeholder { color: var(--muted); }
+
+  /* ---------- Inline status / banners ---------- */
+  .banner {
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 0.85rem;
+    margin-bottom: 14px;
+    border: 1px solid var(--border);
+  }
+  .banner.warn { background: #3a2f12; border-color: #5c4a1a; color: #fcd34d; }
+  .banner.error { background: #3a1d1d; border-color: #5b2b2b; color: var(--danger); }
+  .banner.info { background: var(--panel-2); color: var(--muted); }
+  .hidden { display: none !important; }
+
+  .privacy-note {
+    color: var(--muted);
+    font-size: 0.78rem;
+    margin-top: 4px;
+  }
+
+  /* ---------- Spinner ---------- */
+  .spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(226, 232, 240, 0.3);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: -2px;
+    margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---------- Templates list ---------- */
+  .tpl-list { list-style: none; padding: 0; margin: 0; }
+  .tpl-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px 11px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 8px;
+    background: var(--panel-2);
+  }
+  .tpl-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tpl-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .empty-note { color: var(--muted); font-size: 0.85rem; }
+
+  /* ---------- Modal (settings) ---------- */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(2, 6, 23, 0.72);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    z-index: 50;
+  }
+  .modal {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    width: 100%;
+    max-width: 520px;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 20px;
+  }
+  .modal h2 { margin: 0 0 4px; font-size: 1.1rem; }
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 16px;
+  }
+  .ok-dot { color: var(--good); }
+
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .grow { flex: 1; min-width: 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🧪 Prompt Builder &amp; Tester</h1>
+  <button id="settingsBtn" class="icon ghost" title="Settings" aria-label="Settings">⚙️</button>
+</header>
+
+<div class="container">
+
+  <!-- Privacy / offline note -->
+  <div class="banner info">
+    🔒 Privacy-first: your API key and prompts stay in this browser (localStorage).
+    No analytics, no server of ours. The only network calls are to the LLM provider you configure.
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs" role="tablist">
+    <button class="tab active" data-tab="build" role="tab">Build</button>
+    <button class="tab" data-tab="test" role="tab">Test</button>
+  </div>
+
+  <!-- ============================ BUILD TAB ============================ -->
+  <section id="tab-build">
+    <div class="grid2">
+      <!-- Left: structured input fields -->
+      <div class="panel">
+        <p class="section-title">Compose a structured prompt</p>
+        <p class="section-sub">Fill in what you can. Fields left blank are skipped. Works fully offline.</p>
+
+        <label class="field">
+          <span class="lbl">Role / Persona</span>
+          <input type="text" id="f-role" placeholder="e.g. You are a senior Python engineer and code reviewer." />
+        </label>
+
+        <label class="field">
+          <span class="lbl">Task</span>
+          <textarea id="f-task" placeholder="What should the model do?"></textarea>
+        </label>
+
+        <label class="field">
+          <span class="lbl">Context</span>
+          <textarea id="f-context" placeholder="Background, inputs, or material the model should consider."></textarea>
+        </label>
+
+        <label class="field">
+          <span class="lbl">Constraints</span>
+          <textarea id="f-constraints" placeholder="Rules, tone, length limits, things to avoid. One per line is fine."></textarea>
+        </label>
+
+        <label class="field">
+          <span class="lbl">Output format</span>
+          <textarea id="f-format" placeholder="How the answer should be shaped (e.g. JSON, bullet list, markdown table)."></textarea>
+        </label>
+
+        <label class="field">
+          <span class="lbl">Examples (optional)</span>
+          <textarea id="f-examples" placeholder="Few-shot examples of desired input/output."></textarea>
+        </label>
+      </div>
+
+      <!-- Right: assembled prompt + actions -->
+      <div class="panel">
+        <div class="output-head">
+          <p class="section-title" style="margin:0">Assembled prompt</p>
+          <span class="counts" id="build-counts">0 chars · 0 words</span>
+        </div>
+
+        <textarea id="assembled" class="tall" style="min-height:320px"
+          placeholder="Your structured prompt appears here as you type." readonly></textarea>
+
+        <div class="row" style="margin-top:12px">
+          <button class="primary" id="copyAssembled">📋 Copy prompt</button>
+          <button id="improveBtn">✨ Improve with AI</button>
+          <button class="ghost" id="sendToTestBtn" title="Send this prompt to the Test tab as the user prompt">→ Send to Test</button>
+        </div>
+
+        <div id="improveStatus" class="banner info hidden" style="margin-top:12px"></div>
+
+        <div id="improvedWrap" class="hidden" style="margin-top:14px">
+          <div class="output-head">
+            <p class="section-title" style="margin:0">AI-improved prompt</p>
+            <span class="counts" id="improved-counts"></span>
+          </div>
+          <textarea id="improvedPrompt" class="tall" style="min-height:220px"></textarea>
+          <div class="row" style="margin-top:10px">
+            <button id="copyImproved" class="small">📋 Copy improved</button>
+            <button id="useImproved" class="small">↩ Replace assembled with this</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Templates -->
+    <div class="panel">
+      <p class="section-title">Saved templates</p>
+      <p class="section-sub">Save the current Build fields and reload them later. Stored only in this browser.</p>
+      <div class="row" style="margin-bottom:14px">
+        <input type="text" id="tplName" class="grow" placeholder="Template name (e.g. Bug triage prompt)" />
+        <button class="primary" id="saveTplBtn">💾 Save template</button>
+      </div>
+      <ul class="tpl-list" id="tplList"></ul>
+      <p class="empty-note hidden" id="tplEmpty">No templates saved yet.</p>
+    </div>
+  </section>
+
+  <!-- ============================ TEST TAB ============================ -->
+  <section id="tab-test" class="hidden">
+    <div id="testNoKey" class="banner warn hidden">
+      ⚠️ No API key configured. <button class="small" id="openSettingsFromTest">Open Settings</button> to add one before running.
+    </div>
+
+    <div class="grid2">
+      <div class="panel">
+        <label class="field">
+          <span class="lbl">System prompt</span>
+          <textarea id="t-system" class="tall" placeholder="Optional system / instruction prompt."></textarea>
+        </label>
+      </div>
+      <div class="panel">
+        <label class="field">
+          <span class="lbl">User prompt</span>
+          <textarea id="t-user" class="tall" placeholder="The message to send to the model."></textarea>
+        </label>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="row" style="justify-content:space-between">
+        <label class="field" style="margin:0; max-width:200px">
+          <span class="lbl">Max tokens</span>
+          <input type="number" id="t-maxtokens" min="1" max="128000" step="1" value="2048" />
+        </label>
+        <div class="row">
+          <span class="counts" id="test-counts">system: 0 / user: 0 chars</span>
+          <button class="primary" id="runBtn">▶ Run</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="output-head">
+        <p class="section-title" style="margin:0">Response</p>
+        <div class="row">
+          <span class="counts" id="resp-counts"></span>
+          <button class="small" id="copyResponse">📋 Copy</button>
+        </div>
+      </div>
+      <div id="response" class="response-box placeholder">Run a prompt to see the model's response here.</div>
+    </div>
+  </section>
+
+</div>
+
+<!-- ============================ SETTINGS MODAL ============================ -->
+<div id="settingsModal" class="modal-overlay hidden">
+  <div class="modal">
+    <h2>⚙️ Settings</h2>
+    <p class="section-sub">Your settings are saved in this browser only.</p>
+
+    <label class="field">
+      <span class="lbl">Provider</span>
+      <select id="s-provider">
+        <option value="claude">Claude (Anthropic)</option>
+        <option value="openai">OpenAI-compatible</option>
+      </select>
+    </label>
+
+    <label class="field">
+      <span class="lbl">API key</span>
+      <input type="password" id="s-key" placeholder="sk-..." autocomplete="off" />
+      <span class="privacy-note">Stored in localStorage on this device. Anyone with access to this device can read it.</span>
+    </label>
+
+    <label class="field" id="baseUrlField">
+      <span class="lbl">Base URL (OpenAI-compatible only)</span>
+      <input type="text" id="s-baseurl" placeholder="https://api.openai.com/v1" />
+    </label>
+
+    <label class="field">
+      <span class="lbl">Model</span>
+      <input type="text" id="s-model" list="modelList" placeholder="Model name" />
+      <datalist id="modelList"></datalist>
+    </label>
+
+    <div class="modal-actions">
+      <button class="ghost" id="settingsCancel">Cancel</button>
+      <button class="primary" id="settingsSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   SHARED LLM CLIENT (Provider Module)
+   Identical contract across our AI apps:
+     callLLM({system, user, maxTokens}) -> assistant text
+   ============================================================ */
+
+// --- Settings storage ---------------------------------------------------
+var SETTINGS_KEY = "promptBuilder.settings.v1";
+
+// Default model suggestions per provider for the datalist.
+var CLAUDE_MODELS = ["claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"];
+var OPENAI_MODELS = ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo"];
+
+function defaultSettings() {
+  return {
+    provider: "claude",                       // default provider
+    apiKey: "",
+    baseURL: "https://api.openai.com/v1",     // OpenAI-compatible default
+    model: "claude-opus-4-8"                  // default Claude model
+  };
+}
+
+function loadSettings() {
+  try {
+    var raw = localStorage.getItem(SETTINGS_KEY);
+    if (!raw) return defaultSettings();
+    var parsed = JSON.parse(raw);
+    var d = defaultSettings();
+    // Merge to tolerate older/partial saved shapes.
+    return {
+      provider: parsed.provider === "openai" ? "openai" : "claude",
+      apiKey: typeof parsed.apiKey === "string" ? parsed.apiKey : "",
+      baseURL: parsed.baseURL || d.baseURL,
+      model: parsed.model || d.model
+    };
+  } catch (e) {
+    return defaultSettings();
+  }
+}
+
+function saveSettings(s) {
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+}
+
+var settings = loadSettings();
+
+/**
+ * callLLM — the shared client.
+ * @param {{system?:string, user:string, maxTokens?:number}} opts
+ * @returns {Promise<string>} assistant text
+ */
+async function callLLM(opts) {
+  var system = opts.system || "";
+  var user = opts.user || "";
+  var maxTokens = opts.maxTokens || 2048;
+
+  if (!settings.apiKey) {
+    throw new Error("No API key configured. Open Settings to add one.");
+  }
+
+  if (settings.provider === "claude") {
+    return await callClaude(system, user, maxTokens);
+  }
+  return await callOpenAICompatible(system, user, maxTokens);
+}
+
+async function callClaude(system, user, maxTokens) {
+  var resp;
+  try {
+    resp = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": settings.apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true"
+      },
+      body: JSON.stringify({
+        model: settings.model,
+        max_tokens: maxTokens || 2048,
+        system: system,
+        messages: [{ role: "user", content: user }]
+      })
+    });
+  } catch (netErr) {
+    throw new Error("Network error contacting Anthropic: " + netErr.message);
+  }
+
+  var data = await safeJson(resp);
+  if (!resp.ok) {
+    throw new Error(httpErrorMessage(resp, data));
+  }
+
+  // Handle a refusal stop reason explicitly.
+  if (data && data.stop_reason === "refusal") {
+    throw new Error("The model refused to respond to this request (stop_reason: refusal).");
+  }
+
+  // Join all text blocks from data.content.
+  var text = "";
+  if (data && Array.isArray(data.content)) {
+    text = data.content
+      .filter(function (b) { return b && b.type === "text" && typeof b.text === "string"; })
+      .map(function (b) { return b.text; })
+      .join("");
+  }
+  if (!text) {
+    throw new Error("Received an empty response from Anthropic.");
+  }
+  return text;
+}
+
+async function callOpenAICompatible(system, user, maxTokens) {
+  var base = (settings.baseURL || "https://api.openai.com/v1").replace(/\/$/, "");
+  var url = base + "/chat/completions";
+  var resp;
+  try {
+    resp = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "Authorization": "Bearer " + settings.apiKey
+      },
+      body: JSON.stringify({
+        model: settings.model,
+        max_tokens: maxTokens || 2048,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user }
+        ]
+      })
+    });
+  } catch (netErr) {
+    throw new Error("Network error contacting the API: " + netErr.message);
+  }
+
+  var data = await safeJson(resp);
+  if (!resp.ok) {
+    throw new Error(httpErrorMessage(resp, data));
+  }
+
+  var text = data &&
+    data.choices &&
+    data.choices[0] &&
+    data.choices[0].message &&
+    data.choices[0].message.content;
+  if (!text) {
+    throw new Error("Received an empty or unexpected response from the API.");
+  }
+  return text;
+}
+
+// Parse JSON without throwing on empty/invalid bodies.
+async function safeJson(resp) {
+  try {
+    var txt = await resp.text();
+    return txt ? JSON.parse(txt) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// Build a clear error message from an HTTP error response.
+function httpErrorMessage(resp, data) {
+  var detail = "";
+  if (data && data.error && data.error.message) {
+    detail = data.error.message;
+  } else if (data && typeof data.error === "string") {
+    detail = data.error;
+  } else if (data && data.message) {
+    detail = data.message;
+  }
+  var base = "API error " + resp.status + (resp.statusText ? " (" + resp.statusText + ")" : "");
+  if (resp.status === 401) base += " — check your API key in Settings";
+  if (resp.status === 404) base += " — check the model name and Base URL in Settings";
+  return detail ? base + ": " + detail : base;
+}
+
+/* ============================================================
+   SMALL DOM HELPERS
+   ============================================================ */
+function $(id) { return document.getElementById(id); }
+function on(el, ev, fn) { el.addEventListener(ev, fn); }
+
+function countText(s) {
+  s = s || "";
+  var chars = s.length;
+  var words = s.trim() ? s.trim().split(/\s+/).length : 0;
+  return { chars: chars, words: words };
+}
+
+function fmtCounts(s) {
+  var c = countText(s);
+  return c.chars + " chars · " + c.words + " words";
+}
+
+// Copy text to clipboard with a graceful fallback for file:// contexts.
+async function copyToClipboard(text, btn) {
+  var original = btn ? btn.textContent : null;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      throw new Error("no clipboard api");
+    }
+  } catch (e) {
+    // Fallback: temporary textarea + execCommand (works under file://).
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    } catch (e2) {
+      if (btn) { btn.textContent = "Copy failed"; setTimeout(function(){ btn.textContent = original; }, 1400); }
+      return;
+    }
+  }
+  if (btn) {
+    btn.textContent = "✓ Copied";
+    setTimeout(function () { btn.textContent = original; }, 1400);
+  }
+}
+
+/* ============================================================
+   TAB SWITCHING
+   ============================================================ */
+var tabs = document.querySelectorAll(".tab");
+tabs.forEach(function (t) {
+  on(t, "click", function () {
+    tabs.forEach(function (x) { x.classList.remove("active"); });
+    t.classList.add("active");
+    var which = t.getAttribute("data-tab");
+    $("tab-build").classList.toggle("hidden", which !== "build");
+    $("tab-test").classList.toggle("hidden", which !== "test");
+    if (which === "test") refreshTestKeyBanner();
+  });
+});
+
+/* ============================================================
+   BUILD TAB — assemble the structured prompt live
+   ============================================================ */
+var buildFieldIds = ["f-role", "f-task", "f-context", "f-constraints", "f-format", "f-examples"];
+
+// Assemble fields into a well-structured prompt. Empty fields are omitted.
+function assemblePrompt() {
+  var role = $("f-role").value.trim();
+  var task = $("f-task").value.trim();
+  var context = $("f-context").value.trim();
+  var constraints = $("f-constraints").value.trim();
+  var format = $("f-format").value.trim();
+  var examples = $("f-examples").value.trim();
+
+  var parts = [];
+  if (role) parts.push("# Role\n" + role);
+  if (task) parts.push("# Task\n" + task);
+  if (context) parts.push("# Context\n" + context);
+  if (constraints) parts.push("# Constraints\n" + constraints);
+  if (format) parts.push("# Output Format\n" + format);
+  if (examples) parts.push("# Examples\n" + examples);
+
+  return parts.join("\n\n");
+}
+
+function updateAssembled() {
+  var text = assemblePrompt();
+  $("assembled").value = text;
+  $("build-counts").textContent = fmtCounts(text);
+}
+
+buildFieldIds.forEach(function (id) {
+  on($(id), "input", updateAssembled);
+});
+
+// Copy assembled prompt.
+on($("copyAssembled"), "click", function () {
+  copyToClipboard($("assembled").value, $("copyAssembled"));
+});
+
+// Send assembled prompt into the Test tab's user field.
+on($("sendToTestBtn"), "click", function () {
+  $("t-user").value = $("assembled").value;
+  updateTestCounts();
+  // Switch to Test tab.
+  document.querySelector('.tab[data-tab="test"]').click();
+});
+
+/* ---------- Improve with AI (meta-prompting) ---------- */
+on($("improveBtn"), "click", async function () {
+  var assembled = $("assembled").value.trim();
+  if (!assembled) {
+    showImproveStatus("Add some prompt content first.", "warn");
+    return;
+  }
+  if (!settings.apiKey) {
+    showImproveStatus("No API key configured. Open Settings to add one.", "warn");
+    return;
+  }
+
+  var btn = $("improveBtn");
+  btn.disabled = true;
+  var origLabel = btn.textContent;
+  btn.innerHTML = '<span class="spinner"></span>Improving…';
+  showImproveStatus('<span class="spinner"></span>Asking the model to strengthen your prompt…', "info");
+
+  var metaSystem = "You are an expert prompt engineer. You refine and strengthen prompts " +
+    "for large language models. You improve clarity, specificity, and structure without " +
+    "changing the user's intent.";
+  var metaUser = "Improve and strengthen the following prompt. Make it clearer, more " +
+    "specific, and better structured so an LLM produces higher-quality output. Keep the " +
+    "original intent. Return ONLY the improved prompt with no commentary, preamble, or " +
+    "explanation.\n\n----- PROMPT TO IMPROVE -----\n" + assembled;
+
+  try {
+    var improved = await callLLM({ system: metaSystem, user: metaUser, maxTokens: 2048 });
+    $("improvedPrompt").value = improved.trim();
+    $("improved-counts").textContent = fmtCounts(improved);
+    $("improvedWrap").classList.remove("hidden");
+    hideImproveStatus();
+  } catch (err) {
+    showImproveStatus("⚠️ " + err.message, "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = origLabel;
+  }
+});
+
+function showImproveStatus(html, kind) {
+  var el = $("improveStatus");
+  el.className = "banner " + (kind || "info");
+  el.innerHTML = html;
+  el.classList.remove("hidden");
+}
+function hideImproveStatus() {
+  $("improveStatus").classList.add("hidden");
+}
+
+on($("copyImproved"), "click", function () {
+  copyToClipboard($("improvedPrompt").value, $("copyImproved"));
+});
+on($("useImproved"), "click", function () {
+  // Replace the assembled (read-only) prompt's display with the improved version.
+  $("assembled").value = $("improvedPrompt").value;
+  $("build-counts").textContent = fmtCounts($("assembled").value);
+});
+// Keep the improved counts live if the user edits it.
+on($("improvedPrompt"), "input", function () {
+  $("improved-counts").textContent = fmtCounts($("improvedPrompt").value);
+});
+
+/* ============================================================
+   TEMPLATES — save / load / delete in localStorage
+   ============================================================ */
+var TEMPLATES_KEY = "promptBuilder.templates.v1";
+
+function loadTemplates() {
+  try {
+    var raw = localStorage.getItem(TEMPLATES_KEY);
+    var arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch (e) {
+    return [];
+  }
+}
+function persistTemplates(arr) {
+  localStorage.setItem(TEMPLATES_KEY, JSON.stringify(arr));
+}
+
+function currentBuildFields() {
+  return {
+    role: $("f-role").value,
+    task: $("f-task").value,
+    context: $("f-context").value,
+    constraints: $("f-constraints").value,
+    format: $("f-format").value,
+    examples: $("f-examples").value
+  };
+}
+
+function applyBuildFields(f) {
+  $("f-role").value = f.role || "";
+  $("f-task").value = f.task || "";
+  $("f-context").value = f.context || "";
+  $("f-constraints").value = f.constraints || "";
+  $("f-format").value = f.format || "";
+  $("f-examples").value = f.examples || "";
+  updateAssembled();
+}
+
+function renderTemplates() {
+  var list = $("tplList");
+  var templates = loadTemplates();
+  list.innerHTML = "";
+  $("tplEmpty").classList.toggle("hidden", templates.length > 0);
+
+  templates.forEach(function (tpl, idx) {
+    var li = document.createElement("li");
+
+    var name = document.createElement("span");
+    name.className = "tpl-name";
+    name.textContent = tpl.name;
+    li.appendChild(name);
+
+    var actions = document.createElement("div");
+    actions.className = "tpl-actions";
+
+    var loadBtn = document.createElement("button");
+    loadBtn.className = "small";
+    loadBtn.textContent = "Load";
+    on(loadBtn, "click", function () { applyBuildFields(tpl.fields); });
+
+    var delBtn = document.createElement("button");
+    delBtn.className = "small danger";
+    delBtn.textContent = "Delete";
+    on(delBtn, "click", function () {
+      var arr = loadTemplates();
+      arr.splice(idx, 1);
+      persistTemplates(arr);
+      renderTemplates();
+    });
+
+    actions.appendChild(loadBtn);
+    actions.appendChild(delBtn);
+    li.appendChild(actions);
+    list.appendChild(li);
+  });
+}
+
+on($("saveTplBtn"), "click", function () {
+  var name = $("tplName").value.trim();
+  if (!name) { $("tplName").focus(); return; }
+  var arr = loadTemplates();
+  // If a template with the same name exists, overwrite it.
+  var existing = arr.findIndex(function (t) { return t.name === name; });
+  var entry = { name: name, fields: currentBuildFields() };
+  if (existing >= 0) arr[existing] = entry;
+  else arr.push(entry);
+  persistTemplates(arr);
+  $("tplName").value = "";
+  renderTemplates();
+});
+
+/* ============================================================
+   TEST TAB — run callLLM
+   ============================================================ */
+function updateTestCounts() {
+  var sys = countText($("t-system").value).chars;
+  var usr = countText($("t-user").value).chars;
+  $("test-counts").textContent = "system: " + sys + " / user: " + usr + " chars";
+}
+on($("t-system"), "input", updateTestCounts);
+on($("t-user"), "input", updateTestCounts);
+
+function refreshTestKeyBanner() {
+  $("testNoKey").classList.toggle("hidden", !!settings.apiKey);
+}
+
+on($("openSettingsFromTest"), "click", openSettings);
+
+on($("runBtn"), "click", async function () {
+  if (!settings.apiKey) {
+    refreshTestKeyBanner();
+    openSettings();
+    return;
+  }
+  var user = $("t-user").value.trim();
+  if (!user) {
+    setResponse("Enter a user prompt to run.", true);
+    return;
+  }
+
+  var maxTokens = parseInt($("t-maxtokens").value, 10);
+  if (!maxTokens || maxTokens < 1) maxTokens = 2048;
+
+  var btn = $("runBtn");
+  btn.disabled = true;
+  var origLabel = btn.textContent;
+  btn.innerHTML = '<span class="spinner"></span>Running…';
+  $("resp-counts").textContent = "";
+  setResponseHTML('<span class="spinner"></span>Waiting for the model…', true);
+
+  try {
+    var text = await callLLM({
+      system: $("t-system").value,
+      user: user,
+      maxTokens: maxTokens
+    });
+    setResponse(text, false);
+    $("resp-counts").textContent = fmtCounts(text);
+  } catch (err) {
+    setResponse("⚠️ " + err.message, true);
+    $("resp-counts").textContent = "";
+  } finally {
+    btn.disabled = false;
+    btn.textContent = origLabel;
+  }
+});
+
+function setResponse(text, isPlaceholder) {
+  var el = $("response");
+  el.textContent = text;
+  el.classList.toggle("placeholder", !!isPlaceholder);
+}
+function setResponseHTML(html, isPlaceholder) {
+  var el = $("response");
+  el.innerHTML = html;
+  el.classList.toggle("placeholder", !!isPlaceholder);
+}
+
+on($("copyResponse"), "click", function () {
+  copyToClipboard($("response").textContent, $("copyResponse"));
+});
+
+/* ============================================================
+   SETTINGS MODAL
+   ============================================================ */
+function rebuildModelDatalist() {
+  var dl = $("modelList");
+  dl.innerHTML = "";
+  var models = $("s-provider").value === "openai" ? OPENAI_MODELS : CLAUDE_MODELS;
+  models.forEach(function (m) {
+    var opt = document.createElement("option");
+    opt.value = m;
+    dl.appendChild(opt);
+  });
+}
+
+function toggleBaseUrlField() {
+  // Base URL is only relevant for OpenAI-compatible.
+  $("baseUrlField").classList.toggle("hidden", $("s-provider").value !== "openai");
+}
+
+// When provider changes in the modal, swap default model + datalist.
+on($("s-provider"), "change", function () {
+  rebuildModelDatalist();
+  toggleBaseUrlField();
+  // Suggest a sensible default model when switching providers if the field is
+  // empty or still holds the other provider's default.
+  var cur = $("s-model").value.trim();
+  if ($("s-provider").value === "openai") {
+    if (!cur || CLAUDE_MODELS.indexOf(cur) >= 0) $("s-model").value = "gpt-4o-mini";
+  } else {
+    if (!cur || OPENAI_MODELS.indexOf(cur) >= 0) $("s-model").value = "claude-opus-4-8";
+  }
+});
+
+function openSettings() {
+  // Populate modal from current settings.
+  $("s-provider").value = settings.provider;
+  $("s-key").value = settings.apiKey;
+  $("s-baseurl").value = settings.baseURL;
+  $("s-model").value = settings.model;
+  rebuildModelDatalist();
+  toggleBaseUrlField();
+  $("settingsModal").classList.remove("hidden");
+}
+function closeSettings() {
+  $("settingsModal").classList.add("hidden");
+}
+
+on($("settingsBtn"), "click", openSettings);
+on($("settingsCancel"), "click", closeSettings);
+on($("settingsModal"), "click", function (e) {
+  // Close when clicking the dimmed overlay (but not the modal body).
+  if (e.target === $("settingsModal")) closeSettings();
+});
+
+on($("settingsSave"), "click", function () {
+  var provider = $("s-provider").value === "openai" ? "openai" : "claude";
+  var model = $("s-model").value.trim();
+  if (!model) model = provider === "openai" ? "gpt-4o-mini" : "claude-opus-4-8";
+  settings = {
+    provider: provider,
+    apiKey: $("s-key").value.trim(),
+    baseURL: $("s-baseurl").value.trim() || "https://api.openai.com/v1",
+    model: model
+  };
+  saveSettings(settings);
+  closeSettings();
+  refreshTestKeyBanner();
+});
+
+/* ============================================================
+   INIT
+   ============================================================ */
+updateAssembled();
+updateTestCounts();
+renderTemplates();
+refreshTestKeyBanner();
+</script>
+  <footer class="site-footer" style="text-align:center;padding:24px 16px;margin-top:32px;color:#94a3b8;font-size:13px;line-height:1.5;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">&copy; 2025&ndash;2026 <a href="https://github.com/setnev" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:none">Steven Peterson</a></footer>
+</body>
+</html>
