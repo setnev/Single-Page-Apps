@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>⌨️ Typing Speed Test</title>
+<style>
+  /* ---------- Theme tokens ---------- */
+  :root {
+    --bg: #0f172a;
+    --panel: #1e293b;
+    --panel-2: #273449;
+    --accent: #38bdf8;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --good: #34d399;
+    --bad: #f87171;
+    --radius: 14px;
+    --font: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", "Fira Code", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    min-height: 100%;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 14px 40px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    width: 100%;
+    max-width: 860px;
+  }
+
+  header h1 {
+    font-size: 1.5rem;
+    margin: 0 0 4px;
+    text-align: center;
+  }
+  header p {
+    margin: 0 0 18px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+
+  /* ---------- Controls ---------- */
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 16px;
+  }
+
+  .group {
+    background: var(--panel);
+    border-radius: var(--radius);
+    padding: 6px;
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+
+  .group .label {
+    color: var(--muted);
+    font-size: 0.72rem;
+    align-self: center;
+    padding: 0 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  button {
+    font-family: var(--font);
+    font-size: 0.85rem;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid transparent;
+    border-radius: 10px;
+    padding: 8px 14px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  button:hover { background: #324158; }
+  button.active {
+    background: var(--accent);
+    color: #06283d;
+    font-weight: 600;
+  }
+  button.primary {
+    background: var(--accent);
+    color: #06283d;
+    font-weight: 600;
+  }
+  button.primary:hover { filter: brightness(1.08); }
+
+  /* ---------- Stats bar ---------- */
+  .stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .stat {
+    flex: 1 1 90px;
+    background: var(--panel);
+    border-radius: var(--radius);
+    padding: 12px;
+    text-align: center;
+  }
+  .stat .v {
+    font-size: 1.5rem;
+    font-weight: 700;
+    font-family: var(--mono);
+    color: var(--accent);
+  }
+  .stat .k {
+    font-size: 0.7rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 2px;
+  }
+
+  /* ---------- Typing area ---------- */
+  .typing-panel {
+    position: relative;
+    background: var(--panel);
+    border-radius: var(--radius);
+    padding: 22px;
+    cursor: text;
+    outline: none;
+  }
+  .typing-panel:focus-within {
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+
+  #passage {
+    font-family: var(--mono);
+    font-size: 1.25rem;
+    line-height: 2;
+    letter-spacing: 0.5px;
+    user-select: none;
+    word-break: break-word;
+  }
+
+  /* Each character span */
+  .ch {
+    color: var(--muted);
+    position: relative;
+    transition: color 0.05s;
+  }
+  .ch.correct { color: var(--good); }
+  .ch.incorrect { color: var(--bad); }
+  /* Make mistyped spaces visible */
+  .ch.incorrect.space {
+    background: rgba(248, 113, 113, 0.3);
+    border-radius: 3px;
+  }
+
+  /* Blinking caret rendered before the current character */
+  .ch.current::before {
+    content: "";
+    position: absolute;
+    left: -1px;
+    top: 0.15em;
+    bottom: 0.15em;
+    width: 2px;
+    background: var(--accent);
+    animation: blink 1s step-end infinite;
+  }
+  @keyframes blink {
+    50% { opacity: 0; }
+  }
+
+  /* Hidden input that captures keystrokes (drives mobile keyboard) */
+  #hiddenInput {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    border: 0;
+    background: transparent;
+    cursor: text;
+    /* keep caret off-screen / invisible; we render our own */
+    color: transparent;
+    resize: none;
+  }
+
+  .hint {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.8rem;
+    margin-top: 14px;
+  }
+  kbd {
+    background: var(--panel-2);
+    border-radius: 6px;
+    padding: 2px 6px;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+  }
+
+  /* ---------- Results overlay ---------- */
+  .results {
+    margin-top: 18px;
+    background: var(--panel-2);
+    border-radius: var(--radius);
+    padding: 20px;
+    display: none;
+  }
+  .results.show { display: block; }
+  .results h2 {
+    margin: 0 0 14px;
+    font-size: 1.15rem;
+    text-align: center;
+  }
+  .results-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+  }
+  .results-grid .stat { flex: 1 1 110px; }
+  .best {
+    text-align: center;
+    margin-top: 14px;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+  .best b { color: var(--good); }
+  .new-best {
+    color: var(--good);
+    font-weight: 700;
+  }
+
+  .footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.75rem;
+    margin-top: 26px;
+  }
+
+  @media (max-width: 520px) {
+    #passage { font-size: 1.05rem; line-height: 1.9; }
+    .stat .v { font-size: 1.2rem; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>⌨️ Typing Speed Test</h1>
+    <p>Type the passage as fast and accurately as you can. Privacy-first, fully offline.</p>
+  </header>
+
+  <!-- Mode controls -->
+  <div class="controls">
+    <div class="group" id="timedGroup">
+      <span class="label">Timed</span>
+      <button data-mode="time" data-value="15">15s</button>
+      <button data-mode="time" data-value="30" class="active">30s</button>
+      <button data-mode="time" data-value="60">60s</button>
+    </div>
+    <div class="group" id="wordsGroup">
+      <span class="label">Words</span>
+      <button data-mode="words" data-value="25">25</button>
+      <button data-mode="words" data-value="50">50</button>
+    </div>
+    <div class="group">
+      <span class="label">Source</span>
+      <button data-source="words" class="active">Random words</button>
+      <button data-source="quotes">Quotes</button>
+    </div>
+  </div>
+
+  <!-- Live stats -->
+  <div class="stats">
+    <div class="stat"><div class="v" id="statWpm">0</div><div class="k">WPM</div></div>
+    <div class="stat"><div class="v" id="statRaw">0</div><div class="k">Raw WPM</div></div>
+    <div class="stat"><div class="v" id="statAcc">100%</div><div class="k">Accuracy</div></div>
+    <div class="stat"><div class="v" id="statErr">0</div><div class="k">Errors</div></div>
+    <div class="stat"><div class="v" id="statTime">30</div><div class="k">Time</div></div>
+  </div>
+
+  <!-- Typing area -->
+  <div class="typing-panel" id="panel" tabindex="-1">
+    <div id="passage" aria-hidden="true"></div>
+    <!-- Hidden textarea captures input + triggers the mobile on-screen keyboard -->
+    <textarea id="hiddenInput" autocomplete="off" autocorrect="off"
+      autocapitalize="off" spellcheck="false" aria-label="Typing input"></textarea>
+  </div>
+
+  <div class="hint">
+    Click the passage to start typing. &nbsp;
+    <kbd>Tab</kbd> then <kbd>Enter</kbd> to restart &nbsp;·&nbsp; or use the buttons below.
+  </div>
+
+  <div class="controls" style="margin-top:14px;">
+    <button id="restartBtn">↻ Restart (same text)</button>
+    <button id="newBtn" class="primary">✦ New passage</button>
+  </div>
+
+  <!-- Results -->
+  <div class="results" id="results">
+    <h2>Results</h2>
+    <div class="results-grid">
+      <div class="stat"><div class="v" id="rWpm">0</div><div class="k">WPM</div></div>
+      <div class="stat"><div class="v" id="rRaw">0</div><div class="k">Raw WPM</div></div>
+      <div class="stat"><div class="v" id="rAcc">0%</div><div class="k">Accuracy</div></div>
+      <div class="stat"><div class="v" id="rErr">0</div><div class="k">Errors</div></div>
+      <div class="stat"><div class="v" id="rChars">0</div><div class="k">Chars typed</div></div>
+    </div>
+    <div class="best" id="bestLine"></div>
+  </div>
+
+  <div class="footer">
+    All processing happens in your browser. No network, no analytics, no accounts.
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+   Typing Speed Test — single-file, offline, no dependencies.
+   ===================================================================== */
+
+/* ---------- Embedded word bank (common English words) ---------- */
+const WORD_BANK = [
+  "the","be","to","of","and","a","in","that","have","it","for","not","on","with",
+  "he","as","you","do","at","this","but","his","by","from","they","we","say","her",
+  "she","or","an","will","my","one","all","would","there","their","what","so","up",
+  "out","if","about","who","get","which","go","me","when","make","can","like","time",
+  "no","just","him","know","take","people","into","year","your","good","some","could",
+  "them","see","other","than","then","now","look","only","come","its","over","think",
+  "also","back","after","use","two","how","our","work","first","well","way","even",
+  "new","want","because","any","these","give","day","most","us","great","world","life",
+  "still","hand","large","such","follow","act","why","ask","men","change","went","light",
+  "kind","off","need","house","picture","try","again","animal","point","mother","water",
+  "form","sentence","great","think","help","low","line","differ","turn","cause","much",
+  "mean","before","move","right","boy","old","too","same","tell","does","set","three",
+  "small","end","put","home","read","hand","port","spell","add","land","here","must",
+  "high","every","near","add","food","between","own","below","country","plant","last",
+  "school","father","keep","tree","never","start","city","earth","eye","never","under",
+  "story","saw","left","few","while","along","might","close","something","seem","next",
+  "hard","open","example","begin","always","both","paper","together","got","group","run",
+  "important","until","children","side","feet","car","mile","walk","white","sea","began",
+  "grow","took","river","four","carry","state","once","book","hear","stop","without","second",
+  "later","miss","idea","enough","eat","face","watch","far","really","almost","above","girl",
+  "sometimes","mountain","cut","young","talk","soon","list","song","being","leave","family","music"
+];
+
+/* ---------- Embedded quote bank ---------- */
+const QUOTES = [
+  "The only way to do great work is to love what you do and stay curious about everything.",
+  "Simplicity is the ultimate sophistication, and clarity is the soul of good design.",
+  "Whether you think you can or you think you cannot, you are probably right.",
+  "Success is not final, failure is not fatal, it is the courage to continue that counts.",
+  "The future belongs to those who believe in the beauty of their own dreams.",
+  "In the middle of difficulty lies opportunity waiting quietly to be discovered.",
+  "It always seems impossible until it is finally done by someone who refused to quit.",
+  "Knowledge speaks but wisdom listens, and patience turns small steps into long journeys.",
+  "A journey of a thousand miles begins with a single careful and deliberate step.",
+  "The best time to plant a tree was twenty years ago, the second best time is now."
+];
+
+/* ---------- State ---------- */
+const state = {
+  modeType: "time",   // "time" | "words"
+  modeValue: 30,      // seconds or word count
+  source: "words",    // "words" | "quotes"
+  passage: "",        // the target text
+  typed: "",          // what the user has entered
+  started: false,
+  finished: false,
+  startTime: 0,
+  timerId: null,
+  correctChars: 0,    // running tally for accuracy
+  totalKeystrokes: 0  // every character typed (excluding corrections via backspace counted on entry)
+};
+
+/* ---------- DOM ---------- */
+const passageEl = document.getElementById("passage");
+const inputEl = document.getElementById("hiddenInput");
+const panelEl = document.getElementById("panel");
+const resultsEl = document.getElementById("results");
+
+const statWpm = document.getElementById("statWpm");
+const statRaw = document.getElementById("statRaw");
+const statAcc = document.getElementById("statAcc");
+const statErr = document.getElementById("statErr");
+const statTime = document.getElementById("statTime");
+
+/* ---------- Utility: random integer ---------- */
+function randInt(n) { return Math.floor(Math.random() * n); }
+
+/* ---------- Build a passage based on current mode/source ---------- */
+function buildPassage() {
+  if (state.source === "quotes") {
+    // A single embedded quote (already a complete sentence).
+    return QUOTES[randInt(QUOTES.length)];
+  }
+  // Random words. For timed modes we generate a generous buffer so the
+  // typist never runs out before the clock; for word-count mode we use exactly N.
+  const count = state.modeType === "words" ? state.modeValue : 70;
+  const words = [];
+  for (let i = 0; i < count; i++) {
+    words.push(WORD_BANK[randInt(WORD_BANK.length)]);
+  }
+  return words.join(" ");
+}
+
+/* ---------- Render the passage as individual character spans ---------- */
+function renderPassage() {
+  passageEl.innerHTML = "";
+  const frag = document.createDocumentFragment();
+  for (let i = 0; i < state.passage.length; i++) {
+    const span = document.createElement("span");
+    span.className = "ch";
+    const c = state.passage[i];
+    span.textContent = c;
+    if (c === " ") span.classList.add("space");
+    frag.appendChild(span);
+  }
+  passageEl.appendChild(frag);
+  updateCharClasses();
+}
+
+/* ---------- Update per-character colouring + caret position ---------- */
+function updateCharClasses() {
+  const spans = passageEl.children;
+  const typed = state.typed;
+  for (let i = 0; i < spans.length; i++) {
+    const span = spans[i];
+    span.classList.remove("correct", "incorrect", "current");
+    if (i < typed.length) {
+      if (typed[i] === state.passage[i]) span.classList.add("correct");
+      else span.classList.add("incorrect");
+    } else if (i === typed.length) {
+      span.classList.add("current"); // caret sits before this char
+    }
+  }
+}
+
+/* ---------- Accuracy / error helpers ---------- */
+function countCorrect() {
+  let correct = 0;
+  const len = Math.min(state.typed.length, state.passage.length);
+  for (let i = 0; i < len; i++) {
+    if (state.typed[i] === state.passage[i]) correct++;
+  }
+  return correct;
+}
+function countErrors() {
+  // Errors = currently-incorrect characters within the typed region.
+  return state.typed.length - countCorrect();
+}
+
+/* ---------- WPM math ----------
+   Standard WPM uses a "word" = 5 characters.
+       net WPM  = (correct chars / 5) / minutes elapsed
+       raw WPM  = (all typed chars / 5) / minutes elapsed
+   Accuracy is correct chars over total typed chars.
+   We divide characters by 5 because the typing-test convention defines a
+   "word" as five characters (including spaces), independent of real words. */
+function computeStats(elapsedMs) {
+  const minutes = elapsedMs / 60000;
+  const safeMin = minutes > 0 ? minutes : 1 / 60000; // avoid divide-by-zero on first frame
+  const correct = countCorrect();
+  const totalTyped = state.typed.length;
+
+  const net = (correct / 5) / safeMin;       // net (accuracy-adjusted) WPM
+  const raw = (totalTyped / 5) / safeMin;    // raw WPM (counts all keystrokes)
+  const errors = totalTyped - correct;
+  const accuracy = totalTyped > 0 ? (correct / totalTyped) * 100 : 100;
+
+  return {
+    wpm: Math.max(0, Math.round(net)),
+    raw: Math.max(0, Math.round(raw)),
+    accuracy: Math.round(accuracy),
+    errors: errors,
+    chars: totalTyped
+  };
+}
+
+/* ---------- Live stat refresh ---------- */
+function refreshLiveStats() {
+  const elapsed = state.started ? (performance.now() - state.startTime) : 0;
+  const s = computeStats(elapsed);
+  statWpm.textContent = s.wpm;
+  statRaw.textContent = s.raw;
+  statAcc.textContent = s.accuracy + "%";
+  statErr.textContent = s.errors;
+}
+
+/* ---------- Timer for timed mode ---------- */
+function tick() {
+  if (!state.started || state.finished) return;
+  const elapsed = performance.now() - state.startTime;
+
+  if (state.modeType === "time") {
+    const remaining = Math.max(0, state.modeValue - elapsed / 1000);
+    statTime.textContent = Math.ceil(remaining);
+    if (remaining <= 0) {
+      finish();
+      return;
+    }
+  } else {
+    // word-count mode: show elapsed seconds counting up
+    statTime.textContent = (elapsed / 1000).toFixed(1);
+  }
+  refreshLiveStats();
+  state.timerId = requestAnimationFrame(tick);
+}
+
+/* ---------- Start the test on first keystroke ---------- */
+function startIfNeeded() {
+  if (state.started || state.finished) return;
+  state.started = true;
+  state.startTime = performance.now();
+  state.timerId = requestAnimationFrame(tick);
+}
+
+/* ---------- Finish: freeze input, show results, save best ---------- */
+function finish() {
+  if (state.finished) return;
+  state.finished = true;
+  if (state.timerId) cancelAnimationFrame(state.timerId);
+
+  // Freeze input so nothing is scored after time is up.
+  inputEl.disabled = true;
+
+  const elapsed = state.modeType === "time"
+    ? state.modeValue * 1000                       // full duration for timed mode
+    : (performance.now() - state.startTime);       // actual time for word mode
+
+  const s = computeStats(elapsed);
+
+  // Final stats panel
+  document.getElementById("rWpm").textContent = s.wpm;
+  document.getElementById("rRaw").textContent = s.raw;
+  document.getElementById("rAcc").textContent = s.accuracy + "%";
+  document.getElementById("rErr").textContent = s.errors;
+  document.getElementById("rChars").textContent = s.chars;
+
+  // Mirror into live bar
+  statWpm.textContent = s.wpm;
+  statRaw.textContent = s.raw;
+  statAcc.textContent = s.accuracy + "%";
+  statErr.textContent = s.errors;
+
+  const isBest = saveBest(s.wpm);
+  showBestLine(isBest);
+
+  resultsEl.classList.add("show");
+
+  // remove caret highlight
+  updateCharClasses();
+}
+
+/* ---------- localStorage: best WPM per mode ---------- */
+function modeKey() {
+  // Distinct key per mode + value so each config keeps its own record.
+  return "tst_best_" + state.modeType + "_" + state.modeValue;
+}
+function getBest() {
+  const v = localStorage.getItem(modeKey());
+  return v ? parseInt(v, 10) : 0;
+}
+function saveBest(wpm) {
+  const prev = getBest();
+  if (wpm > prev) {
+    try { localStorage.setItem(modeKey(), String(wpm)); } catch (e) { /* private mode */ }
+    return true;
+  }
+  return false;
+}
+function showBestLine(isNewBest) {
+  const best = getBest();
+  const modeLabel = state.modeType === "time"
+    ? state.modeValue + "s"
+    : state.modeValue + " words";
+  if (isNewBest) {
+    document.getElementById("bestLine").innerHTML =
+      '<span class="new-best">★ New best!</span> Best for ' + modeLabel + ': <b>' + best + ' WPM</b>';
+  } else {
+    document.getElementById("bestLine").innerHTML =
+      'Best for ' + modeLabel + ': <b>' + best + ' WPM</b>';
+  }
+}
+
+/* ---------- Reset to a fresh attempt ---------- */
+function reset(newPassage) {
+  if (state.timerId) cancelAnimationFrame(state.timerId);
+  state.started = false;
+  state.finished = false;
+  state.startTime = 0;
+  state.typed = "";
+  state.timerId = null;
+
+  if (newPassage || !state.passage) {
+    state.passage = buildPassage();
+  }
+
+  // Reset input
+  inputEl.disabled = false;
+  inputEl.value = "";
+
+  // Reset displays
+  statWpm.textContent = "0";
+  statRaw.textContent = "0";
+  statAcc.textContent = "100%";
+  statErr.textContent = "0";
+  statTime.textContent = state.modeType === "time"
+    ? state.modeValue
+    : "0.0";
+
+  resultsEl.classList.remove("show");
+
+  renderPassage();
+}
+
+/* ---------- Handle typing input ---------- */
+inputEl.addEventListener("input", () => {
+  if (state.finished) return;
+
+  let value = inputEl.value;
+
+  // Clamp to passage length so typing past the end does nothing extra.
+  if (value.length > state.passage.length) {
+    value = value.slice(0, state.passage.length);
+    inputEl.value = value;
+  }
+
+  state.typed = value;
+  startIfNeeded();
+  updateCharClasses();
+  refreshLiveStats();
+
+  // Word-count mode: finish when the whole passage is typed.
+  if (state.modeType === "words" && state.typed.length >= state.passage.length) {
+    finish();
+  }
+});
+
+/* Keep focus / keyboard behaviour sensible */
+panelEl.addEventListener("click", () => {
+  if (!state.finished) inputEl.focus();
+});
+
+/* Tab + Enter to restart: Tab focuses something, Enter triggers.
+   We make Enter (when input focused) restart the test for convenience. */
+document.addEventListener("keydown", (e) => {
+  // Restart with Enter when results are showing or input not active.
+  if (e.key === "Enter") {
+    // Avoid inserting newlines into the textarea.
+    e.preventDefault();
+    reset(true);
+    inputEl.focus();
+  }
+});
+
+/* Prevent the textarea itself from accepting Enter newlines mid-test */
+inputEl.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") e.preventDefault();
+});
+
+/* ---------- Mode / source button wiring ---------- */
+function wireModeButtons() {
+  document.querySelectorAll("[data-mode]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      // Clear active state across BOTH timed + words groups (mutually exclusive).
+      document.querySelectorAll("[data-mode]").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      state.modeType = btn.dataset.mode;
+      state.modeValue = parseInt(btn.dataset.value, 10);
+      reset(true);
+      inputEl.focus();
+    });
+  });
+
+  document.querySelectorAll("[data-source]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("[data-source]").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      state.source = btn.dataset.source;
+      reset(true);
+      inputEl.focus();
+    });
+  });
+}
+
+document.getElementById("restartBtn").addEventListener("click", () => {
+  reset(false); // same passage
+  inputEl.focus();
+});
+document.getElementById("newBtn").addEventListener("click", () => {
+  reset(true); // new passage
+  inputEl.focus();
+});
+
+/* ---------- Init ---------- */
+wireModeButtons();
+reset(true);
+</script>
+  <footer class="site-footer" style="text-align:center;padding:24px 16px;margin-top:32px;color:#94a3b8;font-size:13px;line-height:1.5;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">&copy; 2025&ndash;2026 <a href="https://github.com/setnev" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:none">Steven Peterson</a></footer>
+</body>
+</html>
